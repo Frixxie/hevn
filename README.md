@@ -9,17 +9,7 @@ So instead of spending 50 euros for a proprietary solution i did this.
 
 ## Where can i see this working?
 
-Oh! Just run:
-
-```sh
-curl https://fasteraune.com/hevn
-```
-
-For pretty formatting:
-
-```sh
-curl https://fasteraune.com/hevn | jq
-```
+I will soon add a demo
 
 ## How is this project organized?
 
