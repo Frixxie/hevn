@@ -1,4 +1,4 @@
-# Weather at home
+# Collector
 
 This is a simple system which uses rpi and [DHT11](https://whadda.com/product/dht11-digital-temperature-humidity-sensor-module-wpse311/)
 sensor with flask as a http server and client to set up some cool IoT stuff.
