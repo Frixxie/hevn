@@ -15,6 +15,12 @@ Oh! Just run:
 curl https://fasteraune.com/hevn
 ```
 
+For pretty formatting:
+
+```sh
+curl https://fasteraune.com/hevn | jq
+```
+
 ## How is this project organized?
 
 - The collector folder contains the code for running on the RPI which are connected to a DHT11 sensor 
