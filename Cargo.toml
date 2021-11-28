@@ -1,2 +1,2 @@
 [workspace]
-members = ["aggregator", "lumberjack", "util"]
+members = ["aggregator", "lumberjack", "util", "collector"]

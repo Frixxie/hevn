@@ -9,6 +9,10 @@ pub struct Collector {
 }
 
 impl Collector {
+    pub fn new(room: String, url: String) -> Self {
+        Self { room, url }
+    }
+
     pub fn from_json(json: &PathBuf) -> Vec<Self> {
         let file = std::fs::read_to_string(json).unwrap();
         serde_json::from_str(&file).unwrap()
@@ -17,6 +21,7 @@ impl Collector {
     pub fn room(&self) -> String {
         self.room.clone()
     }
+
     pub fn url(&self) -> String {
         self.url.clone()
     }
@@ -31,7 +36,7 @@ pub struct EnvData {
 
 impl EnvData {
     pub fn new(room: String, temperature: f64, humidity: f64) -> Self {
-        EnvData {
+        Self {
             room,
             temperature,
             humidity,
