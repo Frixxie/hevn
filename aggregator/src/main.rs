@@ -1,8 +1,16 @@
-use actix_web::{get, web, App, HttpServer, Responder};
+#[macro_use]
+extern crate log;
+extern crate simplelog;
+
+use simplelog::*;
+
+use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use futures::future::try_join_all;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::fmt;
+use std::fs::File;
 use std::path::PathBuf;
 
 #[derive(Deserialize, Clone)]
@@ -35,6 +43,12 @@ impl EnvData {
     }
 }
 
+impl fmt::Display for EnvData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{},{},{}", self.room, self.temperature, self.humidity)
+    }
+}
+
 async fn get_temperature(client: web::Data<Client>, collector: Collector) -> EnvData {
     let resp: serde_json::Value = client
         .get(&collector.url)
@@ -53,11 +67,12 @@ async fn get_temperature(client: web::Data<Client>, collector: Collector) -> Env
 
 #[get("/")]
 async fn collect(
+    req: HttpRequest,
     client: web::Data<Client>,
     collectors: web::Data<Vec<Collector>>,
 ) -> impl Responder {
     let mut responses = Vec::new();
-    // This is to enable the thread to take ownership of the client and collector
+    // This is to enable the tokio::threads to take ownership of a copy of client and collector
     for collector in collectors.to_vec().iter() {
         let tmp_collector = collector.clone();
         let tmp_client = client.clone();
@@ -66,11 +81,29 @@ async fn collect(
         }));
     }
     let res = try_join_all(responses).await.unwrap();
+    let con_info = req.connection_info();
+    for r in &res {
+        info!("{},{}", con_info.host(), r)
+    }
     web::Json(res)
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    CombinedLogger::init(vec![
+        TermLogger::new(
+            LevelFilter::Warn,
+            Config::default(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
+        WriteLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            File::create("aggregator.log").unwrap(),
+        ),
+    ])
+    .unwrap();
     HttpServer::new(|| {
         App::new()
             .service(collect)
