@@ -79,7 +79,7 @@ async fn main() -> std::io::Result<()> {
                 "collectors.json".to_string(),
             ))))
     })
-    .bind("127.0.0.1:65535")
+    .bind("0.0.0.0:65535")
     .unwrap()
     .run()
     .await

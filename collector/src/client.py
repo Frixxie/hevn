@@ -8,12 +8,12 @@ def get_data(stations_file):
     This method gets the data from the weather stations
     """
     with open(stations_file) as f:
-        stations = json.load(f)
+        collectors = json.load(f)
         dt = int(time())
-        for station in stations:
+        for collector in collectors:
             # There are only one item in station
             # This was the easiest way to unpack them
-            for room, ip in station.items():
+            for room, ip in collector.items():
                 res = requests.get(ip).json()
                 temperature = res["temperature"]
                 humidity = res["humidity"]
@@ -21,4 +21,4 @@ def get_data(stations_file):
 
 
 if __name__ == '__main__':
-    get_data('/home/fredrik/projects/weather_at_home/stations.json')
+    get_data('../../aggregator/collectors.json')
