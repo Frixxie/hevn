@@ -35,7 +35,7 @@ impl EnvData {
     }
 }
 
-async fn get_temperature(client: web::Data<Client>, collector: &Collector) -> EnvData {
+async fn get_temperature(client: web::Data<Client>, collector: Collector) -> EnvData {
     let resp: serde_json::Value = client
         .get(&collector.url)
         .send()
@@ -56,12 +56,13 @@ async fn collect(
     client: web::Data<Client>,
     collectors: web::Data<Vec<Collector>>,
 ) -> impl Responder {
-    let mut responses: Vec<_> = Vec::new();
+    let mut responses = Vec::new();
+    // This is to enable the thread to take ownership of the client and collector
     for collector in collectors.to_vec().iter() {
         let tmp_collector = collector.clone();
         let tmp_client = client.clone();
         responses.push(tokio::spawn(async move {
-            get_temperature(tmp_client, &tmp_collector).await
+            get_temperature(tmp_client, tmp_collector).await
         }));
     }
     let res = try_join_all(responses).await.unwrap();
