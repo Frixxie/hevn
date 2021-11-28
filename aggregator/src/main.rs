@@ -1,57 +1,22 @@
 #[macro_use]
 extern crate log;
 extern crate simplelog;
+extern crate util;
+
+use util::{Collector, EnvData};
 
 use simplelog::*;
 
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use futures::future::try_join_all;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use serde_json;
-use std::fmt;
 use std::fs::File;
 use std::path::PathBuf;
 
-#[derive(Deserialize, Clone)]
-struct Collector {
-    room: String,
-    url: String,
-}
-
-impl Collector {
-    fn from_json(json: &PathBuf) -> Vec<Self> {
-        let file = std::fs::read_to_string(json).unwrap();
-        serde_json::from_str(&file).unwrap()
-    }
-}
-
-#[derive(Serialize)]
-struct EnvData {
-    room: String,
-    temperature: f64,
-    humidity: f64,
-}
-
-impl EnvData {
-    fn new(room: String, temperature: f64, humidity: f64) -> Self {
-        EnvData {
-            room,
-            temperature,
-            humidity,
-        }
-    }
-}
-
-impl fmt::Display for EnvData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{},{},{}", self.room, self.temperature, self.humidity)
-    }
-}
-
 async fn get_temperature(client: web::Data<Client>, collector: Collector) -> EnvData {
     let resp: serde_json::Value = client
-        .get(&collector.url)
+        .get(&collector.url())
         .send()
         .await
         .unwrap()
@@ -59,7 +24,7 @@ async fn get_temperature(client: web::Data<Client>, collector: Collector) -> Env
         .await
         .unwrap();
     EnvData::new(
-        collector.room.clone(),
+        collector.room(),
         resp["temperature"].as_f64().unwrap(),
         resp["humidity"].as_f64().unwrap(),
     )
@@ -109,7 +74,7 @@ async fn main() -> std::io::Result<()> {
             .service(collect)
             .app_data(web::Data::new(Client::new()))
             .app_data(web::Data::new(Collector::from_json(&PathBuf::from(
-                "collectors.json".to_string(),
+                "../collectors.json".to_string(),
             ))))
     })
     .bind("0.0.0.0:65535")
