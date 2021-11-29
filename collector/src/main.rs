@@ -29,7 +29,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .service(read_from_sensor)
-            .app_data(web::Data::new(Pin::new(8)))
+            .app_data(web::Data::new(Pin::new(14)))
             .app_data(web::Data::new(Collector::new(
                 "Bedroom".to_string(),
                 "0.0.0.0".to_string(),
