@@ -10,7 +10,6 @@ use simplelog::*;
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use futures::future::try_join_all;
 use reqwest::Client;
-use serde_json;
 use std::fs::File;
 use std::path::PathBuf;
 

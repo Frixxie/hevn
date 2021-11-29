@@ -27,7 +27,7 @@ impl Collector {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct EnvData {
     room: String,
     temperature: f64,
