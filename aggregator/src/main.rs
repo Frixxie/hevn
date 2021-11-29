@@ -13,7 +13,7 @@ use reqwest::Client;
 use std::fs::File;
 use std::path::PathBuf;
 
-async fn get_temperature(client: web::Data<Client>, collector: Collector) -> EnvData {
+async fn get_envdata(client: web::Data<Client>, collector: Collector) -> EnvData {
     client
         .get(&collector.url())
         .send()
@@ -36,7 +36,7 @@ async fn collect(
         let tmp_collector = collector.clone();
         let tmp_client = client.clone();
         responses.push(tokio::spawn(async move {
-            get_temperature(tmp_client, tmp_collector).await
+            get_envdata(tmp_client, tmp_collector).await
         }));
     }
     let res = try_join_all(responses).await.unwrap();
