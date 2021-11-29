@@ -7,7 +7,7 @@ use util::{Collector, EnvData};
 #[get("/data")]
 async fn read_from_sensor(pin: web::Data<Pin>, collector: web::Data<Collector>) -> impl Responder {
     let (temp, humi) = read_dht11(pin.get_pin()).unwrap();
-    let data = EnvData::new(collector.room(), temp as f64, humi as f64);
+    let data = EnvData::new(collector.room(), temp, humi);
     web::Json(data)
 }
 

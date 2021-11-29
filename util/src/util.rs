@@ -30,12 +30,12 @@ impl Collector {
 #[derive(Serialize, Deserialize)]
 pub struct EnvData {
     room: String,
-    temperature: f64,
-    humidity: f64,
+    temperature: i16,
+    humidity: u16,
 }
 
 impl EnvData {
-    pub fn new(room: String, temperature: f64, humidity: f64) -> Self {
+    pub fn new(room: String, temperature: i16, humidity: u16) -> Self {
         Self {
             room,
             temperature,

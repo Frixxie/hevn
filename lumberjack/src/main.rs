@@ -6,7 +6,7 @@ use util::EnvData;
 async fn main() {
     let client = Client::new();
 
-    let res: EnvData = client
+    let res: Vec<EnvData> = client
         .get("https://fasteraune.com/hevn")
         .send()
         .await
@@ -15,5 +15,7 @@ async fn main() {
         .await
         .unwrap();
 
-    println!("{}", res);
+    for r in res {
+        println!("{}", r);
+    }
 }

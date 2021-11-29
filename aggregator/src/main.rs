@@ -14,19 +14,14 @@ use std::fs::File;
 use std::path::PathBuf;
 
 async fn get_temperature(client: web::Data<Client>, collector: Collector) -> EnvData {
-    let resp: serde_json::Value = client
+    client
         .get(&collector.url())
         .send()
         .await
         .unwrap()
         .json()
         .await
-        .unwrap();
-    EnvData::new(
-        collector.room(),
-        resp["temperature"].as_f64().unwrap(),
-        resp["humidity"].as_f64().unwrap(),
-    )
+        .unwrap()
 }
 
 #[get("/")]
