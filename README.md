@@ -21,6 +21,8 @@ or alternativly:
 curl https://fasteraune.com/hevn
 ```
 
+It is also possible to go to [here](https://fasteraune.com/hevn)
+
 ## How is this project organized?
 
 - `collector` project contains the code for running on the RPI which are connected to a DHT11 sensor, same applies to the `collector_py`
