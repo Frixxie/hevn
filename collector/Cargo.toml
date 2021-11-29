@@ -10,5 +10,5 @@ embedded-hal = "0.2"
 rppal = { version = "0.13.1", features = ["hal", "hal-unproven"] }
 # gpio = "0.4"
 dht11 = "0.3.1"
-actix-web = "3"
+actix-web = "4.0.0-beta.10"
 util = {path="../util"}
