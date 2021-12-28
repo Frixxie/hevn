@@ -20,7 +20,7 @@ impl Pin {
         Self { pin }
     }
     fn get_pin(&self) -> u8 {
-        return self.pin.clone();
+        self.pin
     }
 }
 

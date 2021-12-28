@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::path::PathBuf;
+use std::path::Path;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Collector {
     room: String,
     url: String,
@@ -13,7 +13,7 @@ impl Collector {
         Self { room, url }
     }
 
-    pub fn from_json(json: &PathBuf) -> Vec<Self> {
+    pub fn from_json(json: &Path) -> Vec<Self> {
         let file = std::fs::read_to_string(json).unwrap();
         serde_json::from_str(&file).unwrap()
     }
