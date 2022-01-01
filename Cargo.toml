@@ -1,2 +1,6 @@
 [workspace]
 members = ["aggregator", "lumberjack", "util", "collector"]
+
+[profile.release-lto]
+inherits = "release"
+lto = true
