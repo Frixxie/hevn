@@ -46,6 +46,12 @@ impl EnvData {
 
 impl fmt::Display for EnvData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{},{},{}", self.room, self.temperature, self.humidity)
+        write!(
+            f,
+            "{},{},{}",
+            self.room,
+            (self.temperature as f32) / 10.0,
+            (self.humidity as f32) / 10.0
+        )
     }
 }
