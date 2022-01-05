@@ -53,7 +53,7 @@ async fn main() -> std::io::Result<()> {
         let collector = Collector::new(opt.room.clone(), opt.host.clone());
         App::new()
             .service(read_from_sensor)
-            .app_data(web::Data::new(Pin::new(14)))
+            .app_data(web::Data::new(Pin::new(opt.gpio_pin)))
             .app_data(web::Data::new(collector))
     })
     .bind(format!("{}:{}", host, opt.port))?
