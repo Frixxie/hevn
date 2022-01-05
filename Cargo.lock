@@ -336,6 +336,7 @@ dependencies = [
  "dht11",
  "embedded-hal 0.2.6",
  "rppal",
+ "structopt",
  "util",
 ]
 

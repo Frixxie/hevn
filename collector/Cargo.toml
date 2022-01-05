@@ -6,9 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# For the rpi to be able to read from the dht11 sensor
 embedded-hal = "0.2"
 rppal = { version = "0.13.1", features = ["hal", "hal-unproven"] }
-# gpio = "0.4"
 dht11 = "0.3.1"
+
+# Web server stuffies
 actix-web = "4.0.0-beta.10"
+structopt = { version = "0.3", default-features = false }
+
+# my stuffies
 util = {path="../util"}

@@ -1,8 +1,28 @@
 extern crate util;
 use actix_web::{get, web, App, HttpServer, Responder};
-mod reader;
 use reader::read_dht11;
+use structopt::StructOpt;
 use util::{Collector, EnvData};
+mod reader;
+
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "Collector",
+    about = "Collector for DHT11 sensor using Raspberry Pi"
+)]
+struct Opt {
+    #[structopt(short = "r", long = "room")]
+    room: String,
+
+    #[structopt(short = "h", long = "host", default_value = "0.0.0.0")]
+    host: String,
+
+    #[structopt(short = "p", long = "port", default_value = "5000")]
+    port: String,
+
+    #[structopt(short = "g", long = "gpio", default_value = "14")]
+    gpio_pin: u8,
+}
 
 #[get("/data")]
 async fn read_from_sensor(pin: web::Data<Pin>, collector: web::Data<Collector>) -> impl Responder {
@@ -25,16 +45,18 @@ impl Pin {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    let opt = Opt::from_args();
+
+    let host = opt.host.clone();
+
+    HttpServer::new(move || {
+        let collector = Collector::new(opt.room.clone(), opt.host.clone());
         App::new()
             .service(read_from_sensor)
             .app_data(web::Data::new(Pin::new(14)))
-            .app_data(web::Data::new(Collector::new(
-                "Bedroom".to_string(),
-                "0.0.0.0".to_string(),
-            )))
+            .app_data(web::Data::new(collector))
     })
-    .bind("0.0.0.0:5000")?
+    .bind(format!("{}:{}", host, opt.port))?
     .run()
     .await
 }
