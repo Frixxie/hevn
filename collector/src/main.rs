@@ -3,6 +3,7 @@ use actix_web::{get, web, App, HttpServer, Responder};
 use reader::read_dht11;
 use structopt::StructOpt;
 use util::{Collector, EnvData};
+use tokio::sync::Mutex;
 mod reader;
 
 #[derive(Debug, StructOpt)]
@@ -25,7 +26,8 @@ struct Opt {
 }
 
 #[get("/data")]
-async fn read_from_sensor(pin: web::Data<Pin>, collector: web::Data<Collector>) -> impl Responder {
+async fn read_from_sensor(pin: web::Data<Mutex<Pin>>, collector: web::Data<Collector>) -> impl Responder {
+    let pin = pin.lock().await;
     let (temp, humi) = read_dht11(pin.get_pin()).unwrap();
     web::Json(EnvData::new(collector.room(), temp, humi))
 }
@@ -53,7 +55,7 @@ async fn main() -> std::io::Result<()> {
         let collector = Collector::new(opt.room.clone(), opt.host.clone());
         App::new()
             .service(read_from_sensor)
-            .app_data(web::Data::new(Pin::new(opt.gpio_pin)))
+            .app_data(web::Data::new(Mutex::new(Pin::new(opt.gpio_pin))))
             .app_data(web::Data::new(collector))
     })
     .bind(format!("{}:{}", host, opt.port))?

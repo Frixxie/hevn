@@ -337,6 +337,7 @@ dependencies = [
  "embedded-hal 0.2.6",
  "rppal",
  "structopt",
+ "tokio",
  "util",
 ]
 

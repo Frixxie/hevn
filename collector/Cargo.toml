@@ -14,6 +14,7 @@ dht11 = "0.3.1"
 # Web server stuffies
 actix-web = "4.0.0-beta.10"
 structopt = { version = "0.3", default-features = false }
+tokio = { version = "1", features = ["full"] }
 
 # my stuffies
 util = {path="../util"}
