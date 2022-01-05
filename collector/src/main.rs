@@ -1,5 +1,5 @@
 extern crate util;
-use actix_web::{get, web, App, HttpServer, Responder};
+use actix_web::{get, web, App, HttpServer, Responder, Result};
 use reader::read_dht11;
 use structopt::StructOpt;
 use tokio::sync::Mutex;
@@ -29,10 +29,10 @@ struct Opt {
 async fn read_from_sensor(
     pin: web::Data<Mutex<Pin>>,
     collector: web::Data<Collector>,
-) -> impl Responder {
+) -> Result<impl Responder, actix_web::Error> {
     let pin = pin.lock().await;
-    let (temp, humi) = read_dht11(pin.get_pin()).unwrap();
-    web::Json(EnvData::new(collector.room(), temp, humi))
+    let (temp, humi) = read_dht11(pin.get_pin())?;
+    Ok(web::Json(EnvData::new(collector.room(), temp, humi)))
 }
 
 struct Pin {
