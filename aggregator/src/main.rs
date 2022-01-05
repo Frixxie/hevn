@@ -11,17 +11,23 @@ use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use futures::future::try_join_all;
 use reqwest::Client;
 use std::fs::File;
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 
-async fn get_envdata(client: web::Data<Client>, collector: Collector) -> EnvData {
-    client
-        .get(&collector.url())
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap()
+async fn get_envdata(client: web::Data<Client>, collector: Collector) -> Result<EnvData, Error> {
+    match client.get(&collector.url()).send().await {
+        Ok(response) => match response.json::<EnvData>().await {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                error!("{}", e);
+                Err(Error::new(ErrorKind::Other, e))
+            }
+        },
+        Err(e) => {
+            error!("{}", e);
+            Err(Error::new(ErrorKind::Other, e))
+        }
+    }
 }
 
 #[get("/")]
@@ -29,7 +35,7 @@ async fn collect(
     req: HttpRequest,
     client: web::Data<Client>,
     collectors: web::Data<Vec<Collector>>,
-) -> impl Responder {
+) -> Result<impl Responder, Error> {
     let mut responses = Vec::new();
     // This is to enable the tokio::threads to take ownership of a copy of client and collector
     for collector in collectors.to_vec().iter() {
@@ -39,12 +45,16 @@ async fn collect(
             get_envdata(tmp_client, tmp_collector).await
         }));
     }
-    let res = try_join_all(responses).await.unwrap();
+    let resp: Vec<EnvData> = try_join_all(responses)
+        .await?
+        .into_iter()
+        .map(|data| data.unwrap())
+        .collect();
     let con_info = req.connection_info();
-    for r in &res {
-        info!("{},{}", con_info.host(), r)
+    for data in &resp {
+        info!("{},{}", con_info.host(), data);
     }
-    web::Json(res)
+    Ok(web::Json(resp))
 }
 
 #[actix_web::main]
