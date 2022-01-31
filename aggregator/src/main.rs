@@ -31,12 +31,14 @@ async fn collect(
     req: HttpRequest,
     collectors: web::Data<Vec<Collector>>,
 ) -> Result<impl Responder, Error> {
-    let resp: Vec<EnvData> = collectors
-        .iter()
-        .map(|collector| collector.get_status())
-        .filter(|x| x.is_ok())
-        .map(|x| x.unwrap())
-        .collect();
+    let mut resp: Vec<EnvData> = Vec::new();
+    for collector in collectors.iter() {
+        let data = collector.get_status().await;
+        match data {
+            Ok(d) => resp.push(d),
+            Err(e) => error!("{}", e),
+        }
+    }
     let con_info = req.connection_info();
     for data in &resp {
         info!("{},{}", con_info.host(), data);

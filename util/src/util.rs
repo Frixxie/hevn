@@ -1,4 +1,5 @@
-use reqwest::blocking::Client;
+use async_trait::async_trait;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -13,14 +14,15 @@ pub trait SmartInfo {
     fn app_type(&self) -> Appliences;
 }
 
+#[async_trait]
 pub trait SmartAppliance: SmartInfo {
     type Status;
     type Error: std::error::Error + Default;
-    fn get_status(&self) -> Result<Self::Status, Self::Error>;
-    fn turn_on(&self) -> Result<(), Self::Error> {
+    async fn get_status(&self) -> Result<Self::Status, Self::Error>;
+    async fn turn_on(&self) -> Result<(), Self::Error> {
         Err(Self::Error::default())
     }
-    fn turn_off(&self) -> Result<(), Self::Error> {
+    async fn turn_off(&self) -> Result<(), Self::Error> {
         Err(Self::Error::default())
     }
 }
@@ -78,28 +80,30 @@ impl SmartInfo for Collector {
     }
 }
 
+#[async_trait]
 impl SmartAppliance for Collector {
     type Status = EnvData;
     type Error = CollectorError;
 
-    fn get_status(&self) -> Result<Self::Status, Self::Error> {
+    async fn get_status(&self) -> Result<Self::Status, Self::Error> {
         let res = self
             .client
             .get(&self.url())
             .send()
+            .await
             .map_err(|e| CollectorError {
                 error: Some(Box::new(e)),
             })?;
-        Ok(res.json().map_err(|e| CollectorError {
+        Ok(res.json().await.map_err(|e| CollectorError {
             error: Some(Box::new(e)),
         })?)
     }
 
-    fn turn_on(&self) -> Result<(), Self::Error> {
+    async fn turn_on(&self) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    fn turn_off(&self) -> Result<(), Self::Error> {
+    async fn turn_off(&self) -> Result<(), Self::Error> {
         Ok(())
     }
 }
@@ -137,7 +141,7 @@ impl fmt::Display for EnvData {
 pub struct ShellyS1 {
     room: String,
     url: IpAddr,
-    client: reqwest::blocking::Client,
+    client: Client,
 }
 
 impl ShellyS1 {
@@ -152,13 +156,7 @@ impl ShellyS1 {
 
 impl fmt::Display for ShellyS1 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}, {}, {}",
-            self.room,
-            self.url,
-            self.get_status().unwrap()
-        )
+        write!(f, "{}, {}", self.room, self.url,)
     }
 }
 
@@ -223,16 +221,22 @@ impl fmt::Display for ShellyS1Error {
     }
 }
 
+#[async_trait]
 impl SmartAppliance for ShellyS1 {
     type Status = ShellyStatus;
     type Error = ShellyS1Error;
 
-    fn get_status(&self) -> Result<Self::Status, Self::Error> {
+    async fn get_status(&self) -> Result<Self::Status, Self::Error> {
         let url = format!("http://{}/status", self.url);
-        let response = self.client.get(&url).send().map_err(|e| ShellyS1Error {
-            error: Some(Box::new(e)),
-        })?;
-        let status: Value = response.json().map_err(|e| ShellyS1Error {
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ShellyS1Error {
+                error: Some(Box::new(e)),
+            })?;
+        let status: Value = response.json().await.map_err(|e| ShellyS1Error {
             error: Some(Box::new(e)),
         })?;
         Ok(ShellyStatus {
@@ -249,19 +253,27 @@ impl SmartAppliance for ShellyS1 {
         })
     }
 
-    fn turn_on(&self) -> Result<(), Self::Error> {
+    async fn turn_on(&self) -> Result<(), Self::Error> {
         let url = format!("http://{}/relay/0?turn=on", self.url);
-        self.client.get(&url).send().map_err(|e| ShellyS1Error {
-            error: Some(Box::new(e)),
-        })?;
+        self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ShellyS1Error {
+                error: Some(Box::new(e)),
+            })?;
         Ok(())
     }
 
-    fn turn_off(&self) -> Result<(), Self::Error> {
+    async fn turn_off(&self) -> Result<(), Self::Error> {
         let url = format!("http://{}/relay/0?turn=off", self.url);
-        self.client.get(&url).send().map_err(|e| ShellyS1Error {
-            error: Some(Box::new(e)),
-        })?;
+        self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ShellyS1Error {
+                error: Some(Box::new(e)),
+            })?;
         Ok(())
     }
 }
