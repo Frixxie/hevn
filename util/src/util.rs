@@ -5,6 +5,7 @@ use serde_json::Value;
 use std::fmt;
 use std::net::IpAddr;
 
+//Different kinds of appliences currently supported
 pub enum Appliences {
     ShellyS1,
     Collector,
@@ -18,10 +19,13 @@ pub trait SmartInfo {
 pub trait SmartAppliance: SmartInfo {
     type Status;
     type Error: std::error::Error + Default;
+    /// This functions returns the current status of the appliance
     async fn get_status(&self) -> Result<Self::Status, Self::Error>;
+    /// This function turns the appliance on
     async fn turn_on(&self) -> Result<(), Self::Error> {
         Err(Self::Error::default())
     }
+    /// This function turns the appliance off
     async fn turn_off(&self) -> Result<(), Self::Error> {
         Err(Self::Error::default())
     }
