@@ -11,12 +11,11 @@ use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use serde::Deserialize;
 use std::fs::File;
 use std::io::Error;
-use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 #[derive(Deserialize)]
 struct MyCollector {
-    url: IpAddr,
+    url: String,
     room: String,
 }
 
@@ -67,7 +66,7 @@ async fn main() -> std::io::Result<()> {
             MyCollector::from_json(&PathBuf::from("../collectors.json".to_string()))
                 .iter()
                 .map(|my_collector| {
-                    Collector::new(my_collector.url.to_string(), my_collector.room.to_string())
+                    Collector::new(my_collector.room.to_string(), my_collector.url.to_string())
                 })
                 .collect();
 
