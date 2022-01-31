@@ -1,21 +1,44 @@
+use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fmt;
-use std::path::Path;
+use std::net::IpAddr;
 
-#[derive(Deserialize, Clone, Debug)]
+pub enum Appliences {
+    ShellyS1,
+    Collector,
+}
+
+pub trait SmartInfo {
+    fn app_type(&self) -> Appliences;
+}
+
+pub trait SmartAppliance: SmartInfo {
+    type Status;
+    type Error: std::error::Error + Default;
+    fn get_status(&self) -> Result<Self::Status, Self::Error>;
+    fn turn_on(&self) -> Result<(), Self::Error> {
+        Err(Self::Error::default())
+    }
+    fn turn_off(&self) -> Result<(), Self::Error> {
+        Err(Self::Error::default())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Collector {
     room: String,
     url: String,
+    client: Client,
 }
 
 impl Collector {
     pub fn new(room: String, url: String) -> Self {
-        Self { room, url }
-    }
-
-    pub fn from_json(json: &Path) -> Vec<Self> {
-        let file = std::fs::read_to_string(json).unwrap();
-        serde_json::from_str(&file).unwrap()
+        Self {
+            room,
+            url,
+            client: Client::new(),
+        }
     }
 
     pub fn room(&self) -> String {
@@ -24,6 +47,60 @@ impl Collector {
 
     pub fn url(&self) -> String {
         self.url.clone()
+    }
+}
+
+#[derive(Debug)]
+pub struct CollectorError {
+    error: Option<Box<dyn std::error::Error>>,
+}
+
+impl std::error::Error for CollectorError {}
+
+impl Default for CollectorError {
+    fn default() -> Self {
+        Self { error: None }
+    }
+}
+
+impl fmt::Display for CollectorError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.error {
+            Some(e) => write!(f, "{}", e),
+            None => write!(f, "Unknown error"),
+        }
+    }
+}
+
+impl SmartInfo for Collector {
+    fn app_type(&self) -> Appliences {
+        Appliences::Collector
+    }
+}
+
+impl SmartAppliance for Collector {
+    type Status = EnvData;
+    type Error = CollectorError;
+
+    fn get_status(&self) -> Result<Self::Status, Self::Error> {
+        let res = self
+            .client
+            .get(&self.url())
+            .send()
+            .map_err(|e| CollectorError {
+                error: Some(Box::new(e)),
+            })?;
+        Ok(res.json().map_err(|e| CollectorError {
+            error: Some(Box::new(e)),
+        })?)
+    }
+
+    fn turn_on(&self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn turn_off(&self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 
@@ -53,5 +130,138 @@ impl fmt::Display for EnvData {
             (self.temperature as f32) / 10.0,
             (self.humidity as f32) / 10.0
         )
+    }
+}
+
+#[derive(Debug)]
+pub struct ShellyS1 {
+    room: String,
+    url: IpAddr,
+    client: reqwest::blocking::Client,
+}
+
+impl ShellyS1 {
+    pub fn new(room: String, url: IpAddr) -> Self {
+        Self {
+            room,
+            url,
+            client: Client::new(),
+        }
+    }
+}
+
+impl fmt::Display for ShellyS1 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}, {}, {}",
+            self.room,
+            self.url,
+            self.get_status().unwrap()
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct ShellyStatus {
+    is_on: bool,
+    has_timer: bool,
+    timer_started: u32,
+    timer_duration: u32,
+    timer_remaining: u32,
+    overpower: bool,
+    power: f32,
+    meter_overpower: f32,
+    timestamp: u32,
+    temperature: f32,
+}
+
+impl fmt::Display for ShellyStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            self.is_on,
+            self.has_timer,
+            self.timer_started,
+            self.timer_duration,
+            self.timer_remaining,
+            self.overpower,
+            self.power,
+            self.meter_overpower,
+            self.timestamp,
+            self.temperature
+        )
+    }
+}
+
+impl SmartInfo for ShellyS1 {
+    fn app_type(&self) -> Appliences {
+        Appliences::ShellyS1
+    }
+}
+
+#[derive(Debug)]
+pub struct ShellyS1Error {
+    error: Option<Box<dyn std::error::Error>>,
+}
+
+impl std::error::Error for ShellyS1Error {}
+
+impl Default for ShellyS1Error {
+    fn default() -> Self {
+        Self { error: None }
+    }
+}
+
+impl fmt::Display for ShellyS1Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.error {
+            Some(e) => write!(f, "{}", e),
+            None => write!(f, "Unknown error"),
+        }
+    }
+}
+
+impl SmartAppliance for ShellyS1 {
+    type Status = ShellyStatus;
+    type Error = ShellyS1Error;
+
+    fn get_status(&self) -> Result<Self::Status, Self::Error> {
+        let url = format!("http://{}/status", self.url);
+        let response = self.client.get(&url).send().map_err(|e| ShellyS1Error {
+            error: Some(Box::new(e)),
+        })?;
+        let status: Value = response.json().map_err(|e| ShellyS1Error {
+            error: Some(Box::new(e)),
+        })?;
+        Ok(ShellyStatus {
+            is_on: status["relays"][0]["ison"].as_bool().unwrap_or(false),
+            has_timer: status["relays"][0]["has_timer"].as_bool().unwrap_or(false),
+            timer_started: status["relays"][0]["timer_started"].as_u64().unwrap_or(0) as u32,
+            timer_duration: status["relays"][0]["timer_duration"].as_u64().unwrap_or(0) as u32,
+            timer_remaining: status["relays"][0]["timer_remaining"].as_u64().unwrap_or(0) as u32,
+            overpower: status["relays"][0]["overpower"].as_bool().unwrap_or(false),
+            power: status["meters"][0]["power"].as_f64().unwrap_or(0.0) as f32,
+            meter_overpower: status["meters"][0]["overpower"].as_f64().unwrap_or(0.0) as f32,
+            timestamp: status["meters"][0]["timestamp"].as_u64().unwrap_or(0) as u32,
+            temperature: status["temperature"].as_f64().unwrap_or(0.0) as f32,
+        })
+    }
+
+    fn turn_on(&self) -> Result<(), Self::Error> {
+        let url = format!("http://{}/relay/0?turn=on", self.url);
+        self.client.get(&url).send().map_err(|e| ShellyS1Error {
+            error: Some(Box::new(e)),
+        })?;
+        Ok(())
+    }
+
+    fn turn_off(&self) -> Result<(), Self::Error> {
+        let url = format!("http://{}/relay/0?turn=off", self.url);
+        self.client.get(&url).send().map_err(|e| ShellyS1Error {
+            error: Some(Box::new(e)),
+        })?;
+        Ok(())
     }
 }

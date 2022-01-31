@@ -3,52 +3,40 @@ extern crate log;
 extern crate simplelog;
 extern crate util;
 
-use util::{Collector, EnvData};
+use util::{Collector, EnvData, SmartAppliance};
 
 use simplelog::*;
 
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
-use futures::future::try_join_all;
-use reqwest::Client;
+use serde::Deserialize;
 use std::fs::File;
-use std::io::{Error, ErrorKind};
-use std::path::PathBuf;
+use std::io::Error;
+use std::net::IpAddr;
+use std::path::{Path, PathBuf};
 
-async fn get_envdata(client: web::Data<Client>, collector: Collector) -> Result<EnvData, Error> {
-    match client.get(&collector.url()).send().await {
-        Ok(response) => match response.json::<EnvData>().await {
-            Ok(data) => Ok(data),
-            Err(e) => {
-                error!("{}", e);
-                Err(Error::new(ErrorKind::Other, e))
-            }
-        },
-        Err(e) => {
-            error!("{}", e);
-            Err(Error::new(ErrorKind::Other, e))
-        }
+#[derive(Deserialize)]
+struct MyCollector {
+    url: IpAddr,
+    room: String,
+}
+
+impl MyCollector {
+    fn from_json(json: &Path) -> Vec<Self> {
+        let file = std::fs::read_to_string(json).unwrap();
+        serde_json::from_str(&file).unwrap()
     }
 }
 
 #[get("/")]
 async fn collect(
     req: HttpRequest,
-    client: web::Data<Client>,
     collectors: web::Data<Vec<Collector>>,
 ) -> Result<impl Responder, Error> {
-    let mut responses = Vec::new();
-    // This is to enable the tokio::threads to take ownership of a copy of client and collector
-    for collector in collectors.to_vec().iter() {
-        let tmp_collector = collector.clone();
-        let tmp_client = client.clone();
-        responses.push(tokio::spawn(async move {
-            get_envdata(tmp_client, tmp_collector).await
-        }));
-    }
-    let resp: Vec<EnvData> = try_join_all(responses)
-        .await?
-        .into_iter()
-        .map(|data| data.unwrap())
+    let resp: Vec<EnvData> = collectors
+        .iter()
+        .map(|collector| collector.get_status())
+        .filter(|x| x.is_ok())
+        .map(|x| x.unwrap())
         .collect();
     let con_info = req.connection_info();
     for data in &resp {
@@ -73,13 +61,19 @@ async fn main() -> std::io::Result<()> {
         ),
     ])
     .unwrap();
-    HttpServer::new(|| {
+
+    HttpServer::new(move || {
+        let collectors: Vec<Collector> =
+            MyCollector::from_json(&PathBuf::from("../collectors.json".to_string()))
+                .iter()
+                .map(|my_collector| {
+                    Collector::new(my_collector.url.to_string(), my_collector.room.to_string())
+                })
+                .collect();
+
         App::new()
             .service(collect)
-            .app_data(web::Data::new(Client::new()))
-            .app_data(web::Data::new(Collector::from_json(&PathBuf::from(
-                "../collectors.json".to_string(),
-            ))))
+            .app_data(web::Data::new(collectors))
     })
     .bind("0.0.0.0:65535")
     .unwrap()

@@ -1,6 +1,8 @@
 mod util;
 
-pub use util::{Collector, EnvData};
+pub use util::{
+    Collector, CollectorError, EnvData, ShellyS1, ShellyS1Error, ShellyStatus, SmartAppliance,
+};
 
 #[cfg(test)]
 mod tests {
