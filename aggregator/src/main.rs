@@ -20,7 +20,7 @@ use structopt::StructOpt;
     about = "Connection point for the SmartAppliances"
 )]
 struct Opt {
-    #[structopt(short = "l", long = "log-file", default_value = "~/.aggregator.log")]
+    #[structopt(short = "l", long = "log-file", default_value = "aggregator.log")]
     log_file: String,
 
     #[structopt(short = "c", long = "collectors", default_value = "collectors.json")]
@@ -67,7 +67,7 @@ async fn main() -> std::io::Result<()> {
 
     CombinedLogger::init(vec![
         TermLogger::new(
-            LevelFilter::Warn,
+            LevelFilter::Off,
             Config::default(),
             TerminalMode::Mixed,
             ColorChoice::Auto,
