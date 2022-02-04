@@ -12,6 +12,20 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::Error;
 use std::path::{Path, PathBuf};
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "Aggregator",
+    about = "Connection point for the SmartAppliances"
+)]
+struct Opt {
+    #[structopt(short = "l", long = "log-file", default_value = "~/.aggregator.log")]
+    log_file: String,
+
+    #[structopt(short = "c", long = "collectors", default_value = "collectors.json")]
+    collectors: String
+}
 
 #[derive(Deserialize)]
 struct MyCollector {
@@ -48,6 +62,9 @@ async fn collect(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let opt = Opt::from_args();
+
+
     CombinedLogger::init(vec![
         TermLogger::new(
             LevelFilter::Warn,
@@ -58,14 +75,14 @@ async fn main() -> std::io::Result<()> {
         WriteLogger::new(
             LevelFilter::Info,
             Config::default(),
-            File::create("aggregator.log").unwrap(),
+            File::create(opt.log_file).unwrap(),
         ),
     ])
     .unwrap();
 
     HttpServer::new(move || {
         let collectors: Vec<Collector> =
-            MyCollector::from_json(&PathBuf::from("../collectors.json".to_string()))
+            MyCollector::from_json(&PathBuf::from(opt.collectors.clone()))
                 .iter()
                 .map(|my_collector| {
                     Collector::new(my_collector.room.to_string(), my_collector.url.to_string())

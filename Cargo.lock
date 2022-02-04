@@ -198,6 +198,7 @@ dependencies = [
  "serde",
  "serde_json",
  "simplelog",
+ "structopt",
  "tokio",
  "util",
 ]

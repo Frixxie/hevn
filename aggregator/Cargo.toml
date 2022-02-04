@@ -15,3 +15,4 @@ futures = "0.3.*"
 simplelog = "0.11.0"
 log = "0.4.14"
 util = {path = "../util"}
+structopt = { version = "0.3", default-features = false }
