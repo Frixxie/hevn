@@ -1,5 +1,6 @@
 extern crate util;
 use reqwest::Client;
+use std::time::SystemTime;
 use structopt::StructOpt;
 use util::EnvData;
 
@@ -22,8 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let res: Vec<EnvData> = client.get(opt.url.as_str()).send().await?.json().await?;
 
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_secs();
+
     for r in res {
-        println!("{}", r);
+        println!("{},{}", now, r);
     }
     Ok(())
 }
