@@ -24,7 +24,7 @@ struct Opt {
     log_file: String,
 
     #[structopt(short = "c", long = "collectors", default_value = "collectors.json")]
-    collectors: String
+    collectors: String,
 }
 
 #[derive(Deserialize)]
@@ -63,7 +63,6 @@ async fn collect(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
-
 
     CombinedLogger::init(vec![
         TermLogger::new(
