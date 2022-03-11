@@ -31,6 +31,36 @@ pub trait SmartAppliance: SmartInfo {
     }
 }
 
+/// Data type for the data the collector uses
+#[derive(Serialize, Deserialize)]
+pub struct EnvData {
+    pub room: String,
+    pub temperature: i16,
+    pub humidity: u16,
+}
+
+impl EnvData {
+    pub fn new(room: String, temperature: i16, humidity: u16) -> Self {
+        Self {
+            room,
+            temperature,
+            humidity,
+        }
+    }
+}
+
+impl fmt::Display for EnvData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{},{},{}",
+            self.room,
+            (self.temperature as f32) / 10.0,
+            (self.humidity as f32) / 10.0
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Collector {
     room: String,
@@ -109,35 +139,6 @@ impl SmartAppliance for Collector {
 
     async fn turn_off(&self) -> Result<(), Self::Error> {
         Ok(())
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct EnvData {
-    room: String,
-    temperature: i16,
-    humidity: u16,
-}
-
-impl EnvData {
-    pub fn new(room: String, temperature: i16, humidity: u16) -> Self {
-        Self {
-            room,
-            temperature,
-            humidity,
-        }
-    }
-}
-
-impl fmt::Display for EnvData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{},{},{}",
-            self.room,
-            (self.temperature as f32) / 10.0,
-            (self.humidity as f32) / 10.0
-        )
     }
 }
 
