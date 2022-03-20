@@ -5,14 +5,15 @@ extern crate simplelog;
 extern crate util;
 
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
-use appliance::MyCollector;
+use appliance::{Heater, MyCollector};
 use log::{error, info};
 use simplelog::*;
 use std::fs::File;
 use std::io::Error;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use structopt::StructOpt;
-use util::{Collector, EnvData, SmartAppliance};
+use util::{Collector, EnvData, ShellyStatus, SmartAppliance};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -47,6 +48,40 @@ async fn collect(
     Ok(web::Json(resp))
 }
 
+#[get("/heater/{id}")]
+async fn heater_status(id: web::Path<String>, heaters: web::Data<Vec<Heater>>) -> impl Responder {
+    for h in heaters.iter() {
+        if h.get_room() == id.to_string() {
+            return web::Json(h.get_status().await.unwrap());
+        }
+    }
+    return web::Json(ShellyStatus::default());
+}
+
+#[get("/heater/{id}/on")]
+async fn heater_on(id: web::Path<String>, heaters: web::Data<Vec<Heater>>) -> impl Responder {
+    for h in heaters.iter() {
+        if h.get_room() == id.to_string() {
+            let r = h.turn_on().await.map_err(|e| error!("{}", e));
+            info!("{:?}", r);
+            return web::Json(h.get_status().await.unwrap());
+        }
+    }
+    return web::Json(ShellyStatus::default());
+}
+
+#[get("/heater/{id}/off")]
+async fn heater_off(id: web::Path<String>, heaters: web::Data<Vec<Heater>>) -> impl Responder {
+    for h in heaters.iter() {
+        if h.get_room() == id.to_string() {
+            let r = h.turn_off().await.map_err(|e| error!("{}", e));
+            info!("{:?}", r);
+            return web::Json(h.get_status().await.unwrap());
+        }
+    }
+    return web::Json(ShellyStatus::default());
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
@@ -78,9 +113,19 @@ async fn main() -> std::io::Result<()> {
                 })
                 .collect();
 
+        let mut my_heater: Vec<Heater> = Vec::new();
+        my_heater.push(Heater::new(
+            "192.168.0.101".to_string(),
+            "bedroom".to_string(),
+        ));
+
         App::new()
             .service(collect)
+            .service(heater_status)
+            .service(heater_on)
+            .service(heater_off)
             .app_data(web::Data::new(collectors))
+            .app_data(web::Data::new(my_heater))
     })
     .bind("0.0.0.0:65535")
     .unwrap()

@@ -3,7 +3,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
-use std::net::IpAddr;
 
 //Different kinds of appliences currently supported
 pub enum Appliences {
@@ -145,12 +144,12 @@ impl SmartAppliance for Collector {
 #[derive(Debug)]
 pub struct ShellyS1 {
     room: String,
-    url: IpAddr,
+    url: String,
     client: Client,
 }
 
 impl ShellyS1 {
-    pub fn new(room: String, url: IpAddr) -> Self {
+    pub fn new(room: String, url: String) -> Self {
         Self {
             room,
             url,
@@ -165,7 +164,7 @@ impl fmt::Display for ShellyS1 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ShellyStatus {
     is_on: bool,
     has_timer: bool,
@@ -177,6 +176,23 @@ pub struct ShellyStatus {
     meter_overpower: f32,
     timestamp: u32,
     temperature: f32,
+}
+
+impl Default for ShellyStatus {
+    fn default() -> Self {
+        Self {
+            is_on: false,
+            has_timer: false,
+            timer_started: 0,
+            timer_duration: 0,
+            timer_remaining: 0,
+            overpower: false,
+            power: 0.0,
+            meter_overpower: 0.0,
+            timestamp: 0,
+            temperature: 0.0,
+        }
+    }
 }
 
 impl fmt::Display for ShellyStatus {
