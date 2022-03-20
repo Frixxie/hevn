@@ -11,7 +11,6 @@ use simplelog::*;
 use std::fs::File;
 use std::io::Error;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use structopt::StructOpt;
 use util::{Collector, EnvData, ShellyStatus, SmartAppliance};
 
