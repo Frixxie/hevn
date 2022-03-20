@@ -1,18 +1,18 @@
 #[macro_use]
+mod appliance;
 extern crate log;
 extern crate simplelog;
 extern crate util;
 
-use util::{Collector, EnvData, SmartAppliance};
-
-use simplelog::*;
-
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
-use serde::Deserialize;
+use appliance::MyCollector;
+use log::{error, info};
+use simplelog::*;
 use std::fs::File;
 use std::io::Error;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use structopt::StructOpt;
+use util::{Collector, EnvData, SmartAppliance};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -25,19 +25,6 @@ struct Opt {
 
     #[structopt(short = "c", long = "collectors", default_value = "collectors.json")]
     collectors: String,
-}
-
-#[derive(Deserialize)]
-struct MyCollector {
-    url: String,
-    room: String,
-}
-
-impl MyCollector {
-    fn from_json(json: &Path) -> Vec<Self> {
-        let file = std::fs::read_to_string(json).unwrap();
-        serde_json::from_str(&file).unwrap()
-    }
 }
 
 #[get("/")]
