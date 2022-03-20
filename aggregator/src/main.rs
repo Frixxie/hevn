@@ -71,7 +71,10 @@ async fn main() -> std::io::Result<()> {
             MyCollector::from_json(&PathBuf::from(opt.collectors.clone()))
                 .iter()
                 .map(|my_collector| {
-                    Collector::new(my_collector.room.to_string(), my_collector.url.to_string())
+                    Collector::new(
+                        my_collector.get_room().to_string(),
+                        my_collector.get_url().to_string(),
+                    )
                 })
                 .collect();
 
