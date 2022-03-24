@@ -31,9 +31,13 @@ async fn read_from_sensor(
     collector: web::Data<Collector>,
 ) -> Result<impl Responder, actix_web::Error> {
     let pin = pin.lock().await;
-    let (temp, humi) = read_dht11(pin.get_pin())?;
-    println!("{}, {}", temp, humi);
-    Ok(web::Json(EnvData::new(collector.room(), temp, humi)))
+    match read_dht11(pin.get_pin()) {
+        Ok((temp, humi)) => Ok(web::Json(EnvData::new(collector.room(), temp, humi))),
+        Err(e) => {
+            println!("{}", e);
+            Ok(web::Json(EnvData::new(collector.room(), 0, 0)))
+        }
+    }
 }
 
 struct Pin {
