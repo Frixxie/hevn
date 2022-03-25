@@ -27,11 +27,11 @@ struct Opt {
 
 #[get("/data")]
 async fn read_from_sensor(
-    pin: web::Data<Mutex<Pin>>,
+    pin: web::Data<Pin>,
     collector: web::Data<Collector>,
 ) -> Result<impl Responder, actix_web::Error> {
-    let pin = pin.lock().await;
-    match read_dht11(pin.get_pin()) {
+    let my_pin = pin.pin.lock().await;
+    match read_dht11(*my_pin) {
         Ok((temp, humi)) => Ok(web::Json(EnvData::new(collector.room(), temp, humi))),
         Err(e) => {
             println!("{}", e);
@@ -41,15 +41,14 @@ async fn read_from_sensor(
 }
 
 struct Pin {
-    pin: u8,
+    pin: Mutex<u8>,
 }
 
 impl Pin {
     fn new(pin: u8) -> Self {
-        Self { pin }
-    }
-    fn get_pin(&self) -> u8 {
-        self.pin
+        Self {
+            pin: Mutex::new(pin),
+        }
     }
 }
 
@@ -63,7 +62,7 @@ async fn main() -> std::io::Result<()> {
         let collector = Collector::new(opt.room.clone(), opt.host.clone());
         App::new()
             .service(read_from_sensor)
-            .app_data(web::Data::new(Mutex::new(Pin::new(opt.gpio_pin))))
+            .app_data(web::Data::new(Pin::new(opt.gpio_pin)))
             .app_data(web::Data::new(collector))
     })
     .bind(format!("{}:{}", host, opt.port))?
