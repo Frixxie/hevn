@@ -135,7 +135,7 @@ impl StoredData {
     async fn predict(&self) -> Option<EnvData> {
         let s_data = self.s_data.lock().await;
 
-        if s_data.len() < 1 {
+        if s_data.len() < 5 {
             return None;
         }
 
