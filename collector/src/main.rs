@@ -76,7 +76,8 @@ where
         + std::ops::Sub<Output = T>
         + Copy
         + Default
-        + std::convert::TryFrom<usize>,
+        + std::convert::TryFrom<usize>
+        + std::fmt::Debug,
 {
     let xy = xs
         .iter()
@@ -94,6 +95,7 @@ where
     let slope = (xy_mean - x_mean * y_mean) / (x2_mean - x_mean * x_mean);
     let intercept = y_mean - slope * x_mean;
 
+    dbg!(slope, intercept);
     Some((slope, intercept))
 }
 
@@ -136,6 +138,10 @@ impl StoredData {
 
         if s_data.len() < 5 {
             return None;
+        }
+
+        for (i, data) in s_data.iter().enumerate() {
+            println!("{},{}", i, data);
         }
 
         let x = (0..s_data.len()).map(|x| x as i32).collect::<Vec<_>>();
