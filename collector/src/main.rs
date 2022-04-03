@@ -40,11 +40,11 @@ async fn read_from_sensor(
         match read_dht11(*my_pin) {
             Ok((temp, humi)) => {
                 let env_data = EnvData::new(collector.room(), temp, humi);
-                stored_data.add(env_data).await;
-                if stored_data.len().await > 10 {
+                stored_data.add(env_data.clone()).await;
+                if stored_data.len().await > 5 {
                     stored_data.remove().await;
                 }
-                return Ok(web::Json(EnvData::new(collector.room(), temp, humi)));
+                return Ok(web::Json(env_data));
             }
             Err(e) => {
                 println!("{}", e);
@@ -139,18 +139,18 @@ impl StoredData {
             return None;
         }
 
-        let x = (0..s_data.len()).map(|x| x as u32).collect::<Vec<_>>();
-        let humis = s_data.iter().map(|x| x.humidity as u32).collect::<Vec<_>>();
+        let x = (0..s_data.len()).map(|x| x as i32).collect::<Vec<_>>();
+        let humis = s_data.iter().map(|x| x.humidity as i32).collect::<Vec<_>>();
         let temps = s_data
             .iter()
-            .map(|x| x.temperature as u32)
+            .map(|x| x.temperature as i32)
             .collect::<Vec<_>>();
 
         let res_humi = linear_regression(&x, &humis).unwrap();
         let res_temp = linear_regression(&x, &temps).unwrap();
 
-        let predicted_humi = res_humi.0 * (x.len() + 1) as u32 + res_humi.1;
-        let predicted_temp = res_temp.0 * (x.len() + 1) as u32 + res_temp.1;
+        let predicted_humi = res_humi.0 * (x.len()) as i32 + res_humi.1;
+        let predicted_temp = res_temp.0 * (x.len()) as i32 + res_temp.1;
 
         Some(EnvData::new(
             s_data[0].room.clone(),
@@ -189,4 +189,81 @@ async fn main() -> std::io::Result<()> {
     .bind(format!("{}:{}", host, opt.port))?
     .run()
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_linear_regression() {
+        let xs = [0, 1, 2, 3, 4];
+        let ys = [-2, 0, 2, 4, 6];
+
+        let res = linear_regression(&xs, &ys);
+        assert_eq!(res.unwrap(), (2, -2));
+    }
+
+    #[test]
+    fn test_mean() {
+        let xs = [1, 2, 3, 4, 5];
+        let ys = [2, 4, 6, 8, 10];
+
+        let res = mean(&xs);
+        assert_eq!(res.unwrap(), 3);
+        let res = mean(&ys);
+        assert_eq!(res.unwrap(), 6);
+    }
+
+    #[tokio::test]
+    async fn test_stored_data_add_remove() {
+        let s_data = StoredData::new();
+        let data = EnvData::new("test".to_string(), 10, 20);
+        s_data.add(data.clone()).await;
+        let res = s_data.remove().await.unwrap();
+        assert_eq!(res, data);
+        assert_eq!(s_data.len().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_stored_data_predict_one() {
+        let s_data = StoredData::new();
+        let data = EnvData::new("test".to_string(), 10, 20);
+        s_data.add(data.clone()).await;
+        let res = s_data.predict().await;
+        assert_eq!(res, None);
+    }
+
+    #[tokio::test]
+    async fn test_stored_data_predict_many_increase() {
+        let s_data = StoredData::new();
+        for i in 0..5 {
+            let data = EnvData::new("test".to_string(), i * 2, (i as i16).try_into().unwrap());
+            s_data.add(data.clone()).await;
+        }
+        let res = s_data.predict().await;
+        assert_eq!(res, Some(EnvData::new("test".to_string(), 10, 5)));
+    }
+
+    #[tokio::test]
+    async fn test_stored_data_predict_many_decrease() {
+        let s_data = StoredData::new();
+        for i in (5..10).into_iter().rev() {
+            let data = EnvData::new("test".to_string(), i, (i as i16).try_into().unwrap());
+            s_data.add(data.clone()).await;
+        }
+        let res = s_data.predict().await;
+        assert_eq!(res, Some(EnvData::new("test".to_string(), 4, 4)));
+    }
+
+    #[tokio::test]
+    async fn test_stored_data_predict_many_same() {
+        let s_data = StoredData::new();
+        for _ in 0..5 {
+            let data = EnvData::new("test".to_string(), 5, 5.try_into().unwrap());
+            s_data.add(data.clone()).await;
+        }
+        let res = s_data.predict().await;
+        assert_eq!(res, Some(EnvData::new("test".to_string(), 5, 5)));
+    }
 }

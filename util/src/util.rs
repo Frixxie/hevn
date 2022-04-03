@@ -31,7 +31,7 @@ pub trait SmartAppliance: SmartInfo {
 }
 
 /// Data type for the data the collector uses
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct EnvData {
     pub room: String,
     pub temperature: i16,
