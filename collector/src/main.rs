@@ -179,13 +179,14 @@ async fn main() -> std::io::Result<()> {
     let host = opt.host.clone();
 
     let stored_data = web::Data::new(StoredData::new());
+    let my_pin = web::Data::new(Pin::new(opt.gpio_pin));
+    let my_collector = web::Data::new(Collector::new(opt.room.clone(), opt.host.clone()));
 
     HttpServer::new(move || {
-        let collector = Collector::new(opt.room.clone(), opt.host.clone());
         App::new()
             .service(read_from_sensor)
-            .app_data(web::Data::new(Pin::new(opt.gpio_pin)))
-            .app_data(web::Data::new(collector))
+            .app_data(my_pin.clone())
+            .app_data(my_collector.clone())
             .app_data(stored_data.clone())
     })
     .bind(format!("{}:{}", host, opt.port))?
