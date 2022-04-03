@@ -32,9 +32,8 @@ async fn read_from_sensor(
     stored_data: web::Data<StoredData>,
 ) -> Result<impl Responder, actix_web::Error> {
     let my_pin = pin.pin.lock().await;
-    match stored_data.predict().await {
-        Some(data) => println!("{}", data),
-        None => {}
+    if let Some(data) = stored_data.predict().await {
+        println!("{}", data);
     }
     loop {
         match read_dht11(*my_pin) {

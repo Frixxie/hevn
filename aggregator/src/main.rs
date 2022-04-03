@@ -54,7 +54,7 @@ async fn heater_status(id: web::Path<String>, heaters: web::Data<Vec<Heater>>) -
             return web::Json(h.get_status().await.unwrap());
         }
     }
-    return web::Json(ShellyStatus::default());
+    web::Json(ShellyStatus::default())
 }
 
 #[get("/heater/{id}/on")]
@@ -66,7 +66,7 @@ async fn heater_on(id: web::Path<String>, heaters: web::Data<Vec<Heater>>) -> im
             return web::Json(h.get_status().await.unwrap());
         }
     }
-    return web::Json(ShellyStatus::default());
+    web::Json(ShellyStatus::default())
 }
 
 #[get("/heater/{id}/off")]
@@ -78,7 +78,7 @@ async fn heater_off(id: web::Path<String>, heaters: web::Data<Vec<Heater>>) -> i
             return web::Json(h.get_status().await.unwrap());
         }
     }
-    return web::Json(ShellyStatus::default());
+    web::Json(ShellyStatus::default())
 }
 
 #[actix_web::main]
@@ -101,6 +101,7 @@ async fn main() -> std::io::Result<()> {
     .unwrap();
 
     HttpServer::new(move || {
+        // They should be outside i know due to every thread getting copy instead of reference
         let collectors: Vec<Collector> =
             MyCollector::from_json(&PathBuf::from(opt.collectors.clone()))
                 .iter()
@@ -112,11 +113,10 @@ async fn main() -> std::io::Result<()> {
                 })
                 .collect();
 
-        let mut my_heater: Vec<Heater> = Vec::new();
-        my_heater.push(Heater::new(
+        let my_heater: Vec<Heater> = vec![Heater::new(
             "192.168.0.101".to_string(),
             "bedroom".to_string(),
-        ));
+        )];
 
         App::new()
             .service(collect)

@@ -85,18 +85,12 @@ impl Collector {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CollectorError {
     error: Option<Box<dyn std::error::Error>>,
 }
 
 impl std::error::Error for CollectorError {}
-
-impl Default for CollectorError {
-    fn default() -> Self {
-        Self { error: None }
-    }
-}
 
 impl fmt::Display for CollectorError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -220,18 +214,12 @@ impl SmartInfo for ShellyS1 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ShellyS1Error {
     error: Option<Box<dyn std::error::Error>>,
 }
 
 impl std::error::Error for ShellyS1Error {}
-
-impl Default for ShellyS1Error {
-    fn default() -> Self {
-        Self { error: None }
-    }
-}
 
 impl fmt::Display for ShellyS1Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

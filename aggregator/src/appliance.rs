@@ -30,7 +30,7 @@ pub struct Heater {
 
 impl Heater {
     pub fn new(url: String, room: String) -> Self {
-        let device = ShellyS1::new(room.clone(), url.clone());
+        let device = ShellyS1::new(room.clone(), url);
         Self { room, device }
     }
 
@@ -39,7 +39,7 @@ impl Heater {
     }
 
     pub async fn get_status(&self) -> Result<ShellyStatus, ShellyS1Error> {
-        self.device.get_status().await.map_err(|e| e.into())
+        self.device.get_status().await.map_err(|e| e)
     }
 
     pub async fn turn_on(&self) -> Result<String, ShellyS1Error> {

@@ -1,6 +1,7 @@
 mod util;
 
-pub use util::{
+
+pub use crate::util::{
     Collector, CollectorError, EnvData, ShellyS1, ShellyS1Error, ShellyStatus, SmartAppliance,
 };
 
