@@ -1,6 +1,7 @@
 extern crate util;
 use actix_web::{get, web, App, HttpServer, Responder, Result};
 use reader::read_dht11;
+use std::time::Duration;
 use structopt::StructOpt;
 use tokio::sync::Mutex;
 use util::{Collector, EnvData};
@@ -52,23 +53,17 @@ async fn read_from_sensor(
     }
 }
 
-fn mean<T>(values: &[T]) -> Option<T>
+fn mean<T>(values: &[T], len: T) -> Option<T>
 where
-    T: std::ops::Add<Output = T>
-        + std::ops::Div<Output = T>
-        + Default
-        + Copy
-        + std::convert::Into<T>
-        + std::convert::TryFrom<usize>,
+    T: std::ops::Add<Output = T> + std::ops::Div<Output = T> + Default + Copy,
 {
-    let len = match T::try_from(values.len()) {
-        Ok(len) => len,
-        Err(_) => return None,
-    };
+    if values.len() == 0 {
+        return None;
+    }
     Some(values.iter().fold(T::default(), |a, b| a + *b) / len)
 }
 
-fn linear_regression<T>(xs: &[T], ys: &[T]) -> Option<(T, T)>
+fn linear_regression<T>(xs: &[T], ys: &[T], len: T) -> Option<(T, T)>
 where
     T: std::ops::Add<Output = T>
         + std::ops::Div<Output = T>
@@ -76,7 +71,6 @@ where
         + std::ops::Sub<Output = T>
         + Copy
         + Default
-        + std::convert::TryFrom<usize>
         + std::fmt::Debug,
 {
     let xy = xs
@@ -87,10 +81,10 @@ where
 
     let x2 = xs.iter().map(|x| (*x * *x)).collect::<Vec<T>>();
 
-    let xy_mean = mean(&xy).unwrap();
-    let x_mean = mean(xs).unwrap();
-    let y_mean = mean(ys).unwrap();
-    let x2_mean = mean(&x2).unwrap();
+    let xy_mean = mean(&xy, len).unwrap();
+    let x_mean = mean(xs, len).unwrap();
+    let y_mean = mean(ys, len).unwrap();
+    let x2_mean = mean(&x2, len).unwrap();
 
     let slope = (xy_mean - x_mean * y_mean) / (x2_mean - x_mean * x_mean);
     let intercept = y_mean - slope * x_mean;
@@ -100,29 +94,35 @@ where
 }
 
 struct StoredData {
-    s_data: Mutex<Vec<EnvData>>,
+    s_data: Mutex<Vec<(Duration, EnvData)>>,
+    p_start: Mutex<Duration>,
 }
 
 impl StoredData {
     fn new() -> Self {
         StoredData {
             s_data: Mutex::new(Vec::new()),
+            p_start: Mutex::new(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap(),
+            ),
         }
     }
 
     async fn add(&self, data: EnvData) {
         let mut s_data = self.s_data.lock().await;
-        s_data.push(data);
+        let p_start = self.p_start.lock().await;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap();
+
+        s_data.push((now - *p_start, data));
     }
 
-    async fn remove(&self) -> Option<EnvData> {
+    async fn remove(&self) -> Option<(Duration, EnvData)> {
         let mut s_data = self.s_data.lock().await;
-        let len = s_data.len();
-        if len > 0 {
-            Some(s_data.remove(len - 1))
-        } else {
-            None
-        }
+        s_data.pop()
     }
 
     async fn len(&self) -> usize {
@@ -141,24 +141,32 @@ impl StoredData {
         }
 
         for (i, data) in s_data.iter().enumerate() {
-            println!("{},{}", i, data);
+            println!("{},{:?}", i, data);
         }
 
-        let x = (0..s_data.len()).map(|x| x as i32).collect::<Vec<_>>();
-        let humis = s_data.iter().map(|x| x.humidity as i32).collect::<Vec<_>>();
+        let x = s_data
+            .iter()
+            .map(|(t, _)| t.as_secs_f64())
+            .collect::<Vec<f64>>();
+        let humis = s_data
+            .iter()
+            .map(|(_, v)| (v.humidity as f64) / 10.0)
+            .collect::<Vec<_>>();
         let temps = s_data
             .iter()
-            .map(|x| x.temperature as i32)
+            .map(|(_, v)| (v.temperature as f64) / 10.0)
             .collect::<Vec<_>>();
 
-        let res_humi = linear_regression(&x, &humis).unwrap();
-        let res_temp = linear_regression(&x, &temps).unwrap();
+        let len = x.len() as f64;
 
-        let predicted_humi = res_humi.0 * (x.len()) as i32 + res_humi.1;
-        let predicted_temp = res_temp.0 * (x.len()) as i32 + res_temp.1;
+        let res_humi = linear_regression(&x, &humis, len).unwrap();
+        let res_temp = linear_regression(&x, &temps, len).unwrap();
+
+        let predicted_humi = res_humi.0 * (x.len()) as f64 + res_humi.1;
+        let predicted_temp = res_temp.0 * (x.len()) as f64 + res_temp.1;
 
         Some(EnvData::new(
-            s_data[0].room.clone(),
+            s_data[0].1.room.clone(),
             predicted_temp as i16,
             predicted_humi as u16,
         ))
@@ -208,7 +216,7 @@ mod tests {
         let xs = [0, 1, 2, 3, 4];
         let ys = [-2, 0, 2, 4, 6];
 
-        let res = linear_regression(&xs, &ys);
+        let res = linear_regression(&xs, &ys, xs.len() as i32);
         assert_eq!(res.unwrap(), (2, -2));
     }
 
@@ -217,9 +225,9 @@ mod tests {
         let xs = [1, 2, 3, 4, 5];
         let ys = [2, 4, 6, 8, 10];
 
-        let res = mean(&xs);
+        let res = mean(&xs, xs.len() as i32);
         assert_eq!(res.unwrap(), 3);
-        let res = mean(&ys);
+        let res = mean(&ys, ys.len() as i32);
         assert_eq!(res.unwrap(), 6);
     }
 
@@ -229,7 +237,7 @@ mod tests {
         let data = EnvData::new("test".to_string(), 10, 20);
         s_data.add(data.clone()).await;
         let res = s_data.remove().await.unwrap();
-        assert_eq!(res, data);
+        assert_eq!(res.1, data);
         assert_eq!(s_data.len().await, 0);
     }
 
@@ -248,6 +256,7 @@ mod tests {
         for i in 0..5 {
             let data = EnvData::new("test".to_string(), i * 2, (i as i16).try_into().unwrap());
             s_data.add(data.clone()).await;
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         let res = s_data.predict().await;
         assert_eq!(res, Some(EnvData::new("test".to_string(), 10, 5)));
@@ -259,6 +268,7 @@ mod tests {
         for i in (5..10).into_iter().rev() {
             let data = EnvData::new("test".to_string(), i, (i as i16).try_into().unwrap());
             s_data.add(data.clone()).await;
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         let res = s_data.predict().await;
         assert_eq!(res, Some(EnvData::new("test".to_string(), 4, 4)));
@@ -270,6 +280,7 @@ mod tests {
         for _ in 0..5 {
             let data = EnvData::new("test".to_string(), 5, 5.try_into().unwrap());
             s_data.add(data.clone()).await;
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         let res = s_data.predict().await;
         assert_eq!(res, Some(EnvData::new("test".to_string(), 5, 5)));
