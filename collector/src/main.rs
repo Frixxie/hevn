@@ -41,7 +41,7 @@ async fn read_from_sensor(
             Ok((temp, humi)) => {
                 let env_data = EnvData::new(collector.room(), temp, humi);
                 stored_data.add(env_data.clone()).await;
-                if stored_data.len().await > 5 {
+                if stored_data.len().await > 15 {
                     stored_data.remove().await;
                 }
                 return Ok(web::Json(env_data));
