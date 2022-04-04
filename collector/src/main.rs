@@ -1,7 +1,6 @@
 extern crate util;
 use actix_web::{get, web, App, HttpServer, Responder, Result};
 use reader::read_dht11;
-use std::time::Duration;
 use structopt::StructOpt;
 use tokio::sync::Mutex;
 use util::{Collector, EnvData};
@@ -94,33 +93,22 @@ where
 }
 
 struct StoredData {
-    s_data: Mutex<Vec<(Duration, EnvData)>>,
-    p_start: Mutex<Duration>,
+    s_data: Mutex<Vec<EnvData>>,
 }
 
 impl StoredData {
     fn new() -> Self {
         StoredData {
             s_data: Mutex::new(Vec::new()),
-            p_start: Mutex::new(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap(),
-            ),
         }
     }
 
     async fn add(&self, data: EnvData) {
         let mut s_data = self.s_data.lock().await;
-        let p_start = self.p_start.lock().await;
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap();
-
-        s_data.push((now - *p_start, data));
+        s_data.push(data);
     }
 
-    async fn remove(&self) -> Option<(Duration, EnvData)> {
+    async fn remove(&self) -> Option<EnvData> {
         let mut s_data = self.s_data.lock().await;
         s_data.pop()
     }
@@ -141,20 +129,17 @@ impl StoredData {
         }
 
         for (i, data) in s_data.iter().enumerate() {
-            println!("{},{:?}", i, data);
+            println!("{},{}", i, data);
         }
 
-        let x = s_data
-            .iter()
-            .map(|(t, _)| t.as_secs_f64())
-            .collect::<Vec<f64>>();
+        let x = (0..s_data.len()).map(|x| x as f64).collect::<Vec<f64>>();
         let humis = s_data
             .iter()
-            .map(|(_, v)| (v.humidity as f64) / 10.0)
+            .map(|v| (v.humidity as f64))
             .collect::<Vec<_>>();
         let temps = s_data
             .iter()
-            .map(|(_, v)| (v.temperature as f64) / 10.0)
+            .map(|v| (v.temperature as f64))
             .collect::<Vec<_>>();
 
         let len = x.len() as f64;
@@ -166,7 +151,7 @@ impl StoredData {
         let predicted_temp = res_temp.0 * (x.len()) as f64 + res_temp.1;
 
         Some(EnvData::new(
-            s_data[0].1.room.clone(),
+            s_data[0].room.clone(),
             predicted_temp as i16,
             predicted_humi as u16,
         ))
@@ -237,7 +222,7 @@ mod tests {
         let data = EnvData::new("test".to_string(), 10, 20);
         s_data.add(data.clone()).await;
         let res = s_data.remove().await.unwrap();
-        assert_eq!(res.1, data);
+        assert_eq!(res, data);
         assert_eq!(s_data.len().await, 0);
     }
 
@@ -256,7 +241,6 @@ mod tests {
         for i in 0..5 {
             let data = EnvData::new("test".to_string(), i * 2, (i as i16).try_into().unwrap());
             s_data.add(data.clone()).await;
-            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         let res = s_data.predict().await;
         assert_eq!(res, Some(EnvData::new("test".to_string(), 10, 5)));
@@ -268,7 +252,6 @@ mod tests {
         for i in (5..10).into_iter().rev() {
             let data = EnvData::new("test".to_string(), i, (i as i16).try_into().unwrap());
             s_data.add(data.clone()).await;
-            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         let res = s_data.predict().await;
         assert_eq!(res, Some(EnvData::new("test".to_string(), 4, 4)));
@@ -280,7 +263,6 @@ mod tests {
         for _ in 0..5 {
             let data = EnvData::new("test".to_string(), 5, 5.try_into().unwrap());
             s_data.add(data.clone()).await;
-            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         let res = s_data.predict().await;
         assert_eq!(res, Some(EnvData::new("test".to_string(), 5, 5)));
