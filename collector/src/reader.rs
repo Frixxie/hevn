@@ -13,8 +13,8 @@ pub fn read_dht11(pin: u8) -> Result<(i16, u16), Box<dyn std::error::Error>> {
             Ok(res) => {
                 return Ok((res.temperature, res.humidity));
             }
-            Err(_) => {
-                println!("Error reading retrying..");
+            Err(err) => {
+                println!("Error reading retrying.., {:?}", err);
             }
         }
     }
