@@ -25,6 +25,13 @@ struct Opt {
     gpio_pin: u8,
 }
 
+#[get("/predict")]
+async fn predict(stored_data: web::Data<StoredData>) -> Result<impl Responder> {
+    let possible_expected_data = stored_data.predict().await;
+    let deviation = stored_data.get_expected_deviation(3.0).await;
+    return Ok(format!("{:?}, {:?}", possible_expected_data, deviation));
+}
+
 #[get("/data")]
 async fn read_from_sensor(
     pin: web::Data<Pin>,
@@ -32,17 +39,27 @@ async fn read_from_sensor(
     stored_data: web::Data<StoredData>,
 ) -> Result<impl Responder, actix_web::Error> {
     let my_pin = pin.pin.lock().await;
-    if let Some(data) = stored_data.predict().await {
-        println!("{}", data);
-    }
+    let possible_expected_data = stored_data.predict().await;
+    let deviation = stored_data.get_expected_deviation(3.0).await;
     loop {
         match read_dht11(*my_pin) {
             Ok((temp, humi)) => {
+                if let Some((devi_temp, devi_humi)) = deviation {
+                    if let Some(true) = possible_expected_data.as_ref().map(|data| {
+                        (data.temperature as f32 - temp as f32).abs() > devi_temp
+                            || (data.humidity as f32 - humi as f32).abs() > devi_humi
+                    }) {
+                        continue;
+                    }
+                }
+
                 let env_data = EnvData::new(collector.room(), temp, humi);
+
                 stored_data.add(env_data.clone()).await;
                 if stored_data.len().await > 15 {
                     stored_data.remove().await;
                 }
+
                 return Ok(web::Json(env_data));
             }
             Err(e) => {
@@ -52,17 +69,38 @@ async fn read_from_sensor(
     }
 }
 
-fn mean<T>(values: &[T], len: T) -> Option<T>
+fn mean<T>(values: &[T]) -> Option<T>
 where
-    T: std::ops::Add<Output = T> + std::ops::Div<Output = T> + Default + Copy,
+    T: std::ops::Add<Output = T> + std::ops::Div<Output = T> + From<u16> + Default + Copy,
 {
-    if values.len() == 0 {
+    if values.is_empty() {
         return None;
     }
-    Some(values.iter().fold(T::default(), |a, b| a + *b) / len)
+    Some(values.iter().fold(T::default(), |a, b| a + *b) / (values.len() as u16).into())
 }
 
-fn linear_regression<T>(xs: &[T], ys: &[T], len: T) -> Option<(T, T)>
+fn std_dev<T>(values: &[T], mean: T) -> Option<T>
+where
+    T: std::ops::Sub<Output = T>
+        + std::ops::Add<Output = T>
+        + std::ops::Mul<Output = T>
+        + std::ops::Div<Output = T>
+        + From<u16>
+        + Default
+        + Copy,
+{
+    if values.is_empty() {
+        return None;
+    }
+    Some(
+        values.iter().fold(T::default(), |a, b| {
+            let val = *b - mean;
+            a + val * val
+        }) / (values.len() as u16 - 1).into(),
+    )
+}
+
+fn linear_regression<T>(xs: &[T], ys: &[T]) -> Option<(T, T)>
 where
     T: std::ops::Add<Output = T>
         + std::ops::Div<Output = T>
@@ -70,7 +108,8 @@ where
         + std::ops::Sub<Output = T>
         + Copy
         + Default
-        + std::fmt::Debug,
+        + std::fmt::Debug
+        + std::convert::From<u16>,
 {
     let xy = xs
         .iter()
@@ -80,10 +119,10 @@ where
 
     let x2 = xs.iter().map(|x| (*x * *x)).collect::<Vec<T>>();
 
-    let xy_mean = mean(&xy, len).unwrap();
-    let x_mean = mean(xs, len).unwrap();
-    let y_mean = mean(ys, len).unwrap();
-    let x2_mean = mean(&x2, len).unwrap();
+    let xy_mean = mean(&xy)?;
+    let x_mean = mean(xs)?;
+    let y_mean = mean(ys)?;
+    let x2_mean = mean(&x2)?;
 
     let slope = (xy_mean - x_mean * y_mean) / (x2_mean - x_mean * x_mean);
     let intercept = y_mean - slope * x_mean;
@@ -118,6 +157,40 @@ impl StoredData {
         s_data.len()
     }
 
+    async fn get_expected_deviation<T>(&self, factor: T) -> Option<(T, T)>
+    where
+        T: From<u16>
+            + From<i16>
+            + std::ops::Sub<Output = T>
+            + std::ops::Add<Output = T>
+            + std::ops::Mul<Output = T>
+            + std::ops::Div<Output = T>
+            + Default
+            + Copy,
+    {
+        let s_data = self.s_data.lock().await;
+        let len = s_data.len();
+        if len < 2 {
+            return None;
+        }
+        let humis = s_data
+            .iter()
+            .map(|v| (v.humidity.into()))
+            .collect::<Vec<T>>();
+        let temps = s_data
+            .iter()
+            .map(|v| (v.temperature.into()))
+            .collect::<Vec<T>>();
+
+        let humi_mean = mean(&humis)?;
+        let temp_mean = mean(&temps)?;
+
+        let humi_std_dev = std_dev(&humis, humi_mean)?;
+        let temp_std_dev = std_dev(&temps, temp_mean)?;
+
+        Some((humi_std_dev * factor, temp_std_dev * factor))
+    }
+
     /// predict the temperature and humidity
     /// based on the last 5 values
     /// using linear regression
@@ -132,23 +205,23 @@ impl StoredData {
             println!("{},{}", i, data);
         }
 
-        let x = (0..s_data.len()).map(|x| x as f64).collect::<Vec<f64>>();
+        let x = (0..s_data.len()).map(|x| x as f32).collect::<Vec<f32>>();
         let humis = s_data
             .iter()
-            .map(|v| (v.humidity as f64))
+            .map(|v| (v.humidity as f32))
             .collect::<Vec<_>>();
         let temps = s_data
             .iter()
-            .map(|v| (v.temperature as f64))
+            .map(|v| (v.temperature as f32))
             .collect::<Vec<_>>();
 
         let len = x.len() as f64;
 
-        let res_humi = linear_regression(&x, &humis, len).unwrap();
-        let res_temp = linear_regression(&x, &temps, len).unwrap();
+        let res_humi = linear_regression(&x, &humis).unwrap();
+        let res_temp = linear_regression(&x, &temps).unwrap();
 
-        let predicted_humi = res_humi.0 * (x.len()) as f64 + res_humi.1;
-        let predicted_temp = res_temp.0 * (x.len()) as f64 + res_temp.1;
+        let predicted_humi = res_humi.0 * (x.len()) as f32 + res_humi.1;
+        let predicted_temp = res_temp.0 * (x.len()) as f32 + res_temp.1;
 
         Some(EnvData::new(
             s_data[0].room.clone(),
@@ -201,7 +274,7 @@ mod tests {
         let xs = [0, 1, 2, 3, 4];
         let ys = [-2, 0, 2, 4, 6];
 
-        let res = linear_regression(&xs, &ys, xs.len() as i32);
+        let res = linear_regression(&xs, &ys);
         assert_eq!(res.unwrap(), (2, -2));
     }
 
@@ -210,9 +283,9 @@ mod tests {
         let xs = [1, 2, 3, 4, 5];
         let ys = [2, 4, 6, 8, 10];
 
-        let res = mean(&xs, xs.len() as i32);
+        let res = mean(&xs);
         assert_eq!(res.unwrap(), 3);
-        let res = mean(&ys, ys.len() as i32);
+        let res = mean(&ys);
         assert_eq!(res.unwrap(), 6);
     }
 
