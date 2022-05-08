@@ -50,7 +50,15 @@ async fn read_from_sensor(
                 // Check if the data is valid
                 if let Some((devi_temp, devi_humi)) = deviation {
                     if let Some(true) = possible_expected_data.as_ref().map(|data| {
-                        dbg!((data.temperature as f32 - temp as f32).abs(), (data.humidity as f32 - humi as f32).abs(), devi_temp, devi_humi);
+                        dbg!(
+                            "temp: {} ({},{}), humi: {} ({},{})",
+                            temp,
+                            data.temperature as f32 - devi_temp,
+                            data.temperature as f32 + devi_temp,
+                            humi,
+                            data.humidity as f32 - devi_humi,
+                            data.humidity as f32 + devi_humi
+                        );
                         (data.temperature as f32 - temp as f32).abs() > devi_temp
                             || (data.humidity as f32 - humi as f32).abs() > devi_humi
                     }) {
