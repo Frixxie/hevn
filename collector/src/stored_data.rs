@@ -1,5 +1,6 @@
 use tokio::sync::Mutex;
 use util::EnvData;
+use std::collections::VecDeque;
 
 pub fn mean<T>(values: &[T]) -> Option<T>
 where
@@ -64,26 +65,26 @@ where
 }
 
 pub struct StoredData {
-    s_data: Mutex<Vec<EnvData>>,
+    s_data: Mutex<VecDeque<EnvData>>,
     lim: usize,
 }
 
 impl StoredData {
     pub fn new(lim: usize) -> Self {
         StoredData {
-            s_data: Mutex::new(Vec::new()),
+            s_data: Mutex::new(VecDeque::new()),
             lim,
         }
     }
 
     pub async fn add(&self, data: EnvData) {
         let mut s_data = self.s_data.lock().await;
-        s_data.push(data);
+        s_data.push_back(data);
     }
 
     pub async fn remove(&self) -> Option<EnvData> {
         let mut s_data = self.s_data.lock().await;
-        s_data.pop()
+        s_data.pop_front()
     }
 
     pub async fn len(&self) -> usize {
