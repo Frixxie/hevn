@@ -256,6 +256,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .service(read_from_sensor)
+            .service(predict)
             .app_data(my_pin.clone())
             .app_data(my_collector.clone())
             .app_data(stored_data.clone())
