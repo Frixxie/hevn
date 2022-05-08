@@ -51,7 +51,6 @@ async fn read_from_sensor(
                 if let Some((devi_temp, devi_humi)) = deviation {
                     if let Some(true) = possible_expected_data.as_ref().map(|data| {
                         dbg!(
-                            "temp: {} ({},{}), humi: {} ({},{})",
                             temp,
                             data.temperature as f32 - devi_temp,
                             data.temperature as f32 + devi_temp,

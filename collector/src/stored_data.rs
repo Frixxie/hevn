@@ -1,27 +1,30 @@
+use std::collections::VecDeque;
 use tokio::sync::Mutex;
 use util::EnvData;
-use std::collections::VecDeque;
 
-pub fn mean<T>(values: &[T]) -> Option<T>
-where
-    T: std::ops::Add<Output = T> + std::ops::Div<Output = T> + From<u16> + Default + Copy,
+pub trait Stats:
+    std::ops::Add<Output = Self>
+    + std::ops::Div<Output = Self>
+    + std::ops::Mul<Output = Self>
+    + std::ops::Sub<Output = Self>
+    + Copy
+    + Default
+    + std::fmt::Debug
+    + std::convert::From<u16>
+    + std::cmp::PartialOrd
 {
+}
+
+impl Stats for f32 {}
+impl Stats for i32 {}
+pub fn mean<T: Stats>(values: &[T]) -> Option<T> {
     if values.is_empty() {
         return None;
     }
     Some(values.iter().fold(T::default(), |a, b| a + *b) / (values.len() as u16).into())
 }
 
-pub fn std_dev<T>(values: &[T], mean: T) -> Option<T>
-where
-    T: std::ops::Sub<Output = T>
-        + std::ops::Add<Output = T>
-        + std::ops::Mul<Output = T>
-        + std::ops::Div<Output = T>
-        + From<u16>
-        + Default
-        + Copy,
-{
+pub fn std_dev<T: Stats>(values: &[T], mean: T) -> Option<T> {
     if values.is_empty() {
         return None;
     }
@@ -33,17 +36,7 @@ where
     )
 }
 
-pub fn linear_regression<T>(xs: &[T], ys: &[T]) -> Option<(T, T)>
-where
-    T: std::ops::Add<Output = T>
-        + std::ops::Div<Output = T>
-        + std::ops::Mul<Output = T>
-        + std::ops::Sub<Output = T>
-        + Copy
-        + Default
-        + std::fmt::Debug
-        + std::convert::From<u16>,
-{
+pub fn linear_regression<T: Stats>(xs: &[T], ys: &[T]) -> Option<(T, T)> {
     let xy = xs
         .iter()
         .zip(ys)
@@ -96,17 +89,7 @@ impl StoredData {
         self.lim
     }
 
-    pub async fn get_expected_deviation<T>(&self, factor: T) -> Option<(T, T)>
-    where
-        T: From<u16>
-            + From<i16>
-            + std::ops::Sub<Output = T>
-            + std::ops::Add<Output = T>
-            + std::ops::Mul<Output = T>
-            + std::ops::Div<Output = T>
-            + Default
-            + Copy,
-    {
+    pub async fn get_expected_deviation<T: Stats + From<i16>>(&self, factor: T) -> Option<(T, T)> {
         let s_data = self.s_data.lock().await;
         let len = s_data.len();
         if len < self.lim {
@@ -121,10 +104,17 @@ impl StoredData {
             .map(|v| (v.temperature.into()))
             .collect::<Vec<T>>();
 
-        Some((
-            std_dev(&temps, mean(&temps)?)? * factor,
-            std_dev(&humis, mean(&humis)?)? * factor,
-        ))
+        let mut std_temp: T = std_dev(&temps, mean(&temps)?)? * factor;
+        let mut std_humi: T = std_dev(&humis, mean(&humis)?)? * factor;
+
+        if std_temp < 10i16.into() {
+            std_temp = 10i16.into();
+        }
+        if std_humi < 20i16.into() {
+            std_humi = 20i16.into();
+        }
+
+        Some((std_temp, std_humi))
     }
 
     /// predict the temperature and humidity
@@ -170,7 +160,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_linear_regression() {
+    fn is_linear_regression() {
         let xs = [0, 1, 2, 3, 4];
         let ys = [-2, 0, 2, 4, 6];
 
@@ -179,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mean() {
+    fn is_mean() {
         let xs = [1, 2, 3, 4, 5];
         let ys = [2, 4, 6, 8, 10];
 
@@ -190,7 +180,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stored_data_add_remove() {
+    async fn stored_data_add_remove() {
         let s_data = StoredData::new(5);
         let data = EnvData::new("test".to_string(), 10, 20);
         s_data.add(data.clone()).await;
@@ -200,7 +190,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stored_data_predict_one() {
+    async fn stored_data_predict_one() {
         let s_data = StoredData::new(5);
         let data = EnvData::new("test".to_string(), 10, 20);
         s_data.add(data.clone()).await;
@@ -209,7 +199,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stored_data_predict_many_increase() {
+    async fn stored_data_predict_many_increase() {
         let s_data = StoredData::new(5);
         for i in 0..5 {
             let data = EnvData::new("test".to_string(), i * 2, (i as i16).try_into().unwrap());
@@ -220,7 +210,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stored_data_predict_many_decrease() {
+    async fn stored_data_predict_many_decrease() {
         let s_data = StoredData::new(5);
         for i in (5..10).into_iter().rev() {
             let data = EnvData::new("test".to_string(), i, (i as i16).try_into().unwrap());
@@ -231,7 +221,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stored_data_predict_many_same() {
+    async fn stored_data_predict_many_same() {
         let s_data = StoredData::new(5);
         for _ in 0..5 {
             let data = EnvData::new("test".to_string(), 5, 5.try_into().unwrap());
