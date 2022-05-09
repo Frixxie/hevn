@@ -83,6 +83,20 @@ impl Collector {
     pub fn url(&self) -> String {
         self.url.clone()
     }
+
+    pub async fn read(&self) -> Result<EnvData, Box<CollectorError>> {
+        let res = self
+            .client
+            .get(format!("{}/read", &self.url()))
+            .send()
+            .await
+            .map_err(|e| CollectorError {
+                error: Some(Box::new(e)),
+            })?;
+        Ok(res.json().await.map_err(|e| CollectorError {
+            error: Some(Box::new(e)),
+        })?)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -115,7 +129,7 @@ impl SmartAppliance for Collector {
     async fn get_status(&self) -> Result<Self::Status, Self::Error> {
         let res = self
             .client
-            .get(&self.url())
+            .get(format!("{}/data", &self.url()))
             .send()
             .await
             .map_err(|e| CollectorError {

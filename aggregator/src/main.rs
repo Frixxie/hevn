@@ -47,6 +47,26 @@ async fn collect(
     Ok(web::Json(resp))
 }
 
+#[get("/read")]
+async fn read(
+    req: HttpRequest,
+    collectors: web::Data<Vec<Collector>>,
+) -> Result<impl Responder, Error> {
+    let mut resp: Vec<EnvData> = Vec::new();
+    for collector in collectors.iter() {
+        let data = collector.read().await;
+        match data {
+            Ok(d) => resp.push(d),
+            Err(e) => error!("{}", e),
+        }
+    }
+    let con_info = req.connection_info();
+    for data in &resp {
+        info!("{},{}", con_info.host(), data);
+    }
+    Ok(web::Json(resp))
+}
+
 #[get("/heater/{id}")]
 async fn heater_status(id: web::Path<String>, heaters: web::Data<Vec<Heater>>) -> impl Responder {
     for h in heaters.iter() {

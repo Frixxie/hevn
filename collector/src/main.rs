@@ -26,6 +26,10 @@ struct Opt {
 
     #[structopt(short = "g", long = "gpio", default_value = "14")]
     gpio_pin: u8,
+
+    /// Limit of data to store
+    #[structopt(short = "l", long = "limit", default_value = "5")]
+    limit: usize,
 }
 
 #[get("/predict")]
@@ -35,8 +39,27 @@ async fn predict(stored_data: web::Data<StoredData>) -> Result<impl Responder> {
     return Ok(format!("{:?}, {:?}", possible_expected_data, deviation));
 }
 
+#[get("/read")]
+async fn read(pin: web::Data<Pin>, collector: web::Data<Collector>) -> Result<impl Responder> {
+    let my_pin = pin.pin.lock().await;
+    loop {
+        match read_dht11(*my_pin) {
+            Ok((temperature, humidity)) => {
+                return Ok(web::Json(EnvData::new(
+                    collector.room(),
+                    temperature,
+                    humidity,
+                )))
+            }
+            Err(e) => {
+                println!("{:?}", e);
+            }
+        }
+    }
+}
+
 #[get("/data")]
-async fn read_from_sensor(
+async fn data(
     pin: web::Data<Pin>,
     collector: web::Data<Collector>,
     stored_data: web::Data<StoredData>,
@@ -100,13 +123,14 @@ async fn main() -> std::io::Result<()> {
 
     let host = opt.host.clone();
 
-    let stored_data = web::Data::new(StoredData::new(5));
+    let stored_data = web::Data::new(StoredData::new(opt.limit));
     let my_pin = web::Data::new(Pin::new(opt.gpio_pin));
     let my_collector = web::Data::new(Collector::new(opt.room.clone(), opt.host.clone()));
 
     HttpServer::new(move || {
         App::new()
-            .service(read_from_sensor)
+            .service(data)
+            .service(read)
             .service(predict)
             .app_data(my_pin.clone())
             .app_data(my_collector.clone())
