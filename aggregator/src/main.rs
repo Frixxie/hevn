@@ -140,6 +140,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .service(collect)
+            .service(read)
             .service(heater_status)
             .service(heater_on)
             .service(heater_off)
