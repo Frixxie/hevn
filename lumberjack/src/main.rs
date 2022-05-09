@@ -11,7 +11,7 @@ struct Opt {
     #[structopt(
         short = "u",
         long = "url",
-        default_value = "https://fasteraune.com/hevn"
+        default_value = "https://fasteraune.com/hevn/read"
     )]
     url: String,
 
