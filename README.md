@@ -3,9 +3,7 @@
 ## Motivation
 
 This is my IoT temperature and humidity monitoring solution for where i live.
-I found it cheaper to go buy DHT11 sensors and hook them up to my already owned Raspberry PIs
-
-So instead of spending 50 euros for a proprietary solution i did this.
+It is based on DHT11 and RaspberryPIs.
 
 ## Where can i see this working?
 
@@ -18,14 +16,14 @@ cargo run --bin lumberjack
 or alternativly:
 
 ```sh
-curl https://fasteraune.com/hevn
+curl https://fasteraune.com/hevn/read
 ```
 
-It is also possible to go to [here](https://fasteraune.com/hevn)
+It is also possible to go to [here](https://fasteraune.com/hevn/read)
 
 ## How is this project organized?
 
-- `collector` project contains the code for running on the RPI which are connected to a DHT11 sensor, same applies to the `collector_py`
+- `collector` project contains the code for running on the RaspberryPIs, which are connected to a DHT11 sensor.
 
 - `aggregator` project contains the code for running a http server which collects the results from the collectors and sends it out to the users.
 
