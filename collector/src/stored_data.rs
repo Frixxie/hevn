@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use util::EnvData;
 
@@ -17,6 +18,7 @@ pub trait Stats:
 
 impl Stats for f32 {}
 impl Stats for i32 {}
+
 pub fn mean<T: Stats>(values: &[T]) -> Option<T> {
     if values.is_empty() {
         return None;
@@ -58,8 +60,9 @@ pub fn linear_regression<T: Stats>(xs: &[T], ys: &[T]) -> Option<(T, T)> {
 }
 
 pub struct StoredData {
-    s_data: Mutex<VecDeque<EnvData>>,
+    s_data: Mutex<VecDeque<(Duration, EnvData)>>,
     lim: usize,
+    p_start: Instant,
 }
 
 impl StoredData {
@@ -67,15 +70,16 @@ impl StoredData {
         StoredData {
             s_data: Mutex::new(VecDeque::new()),
             lim,
+            p_start: Instant::now(),
         }
     }
 
     pub async fn add(&self, data: EnvData) {
         let mut s_data = self.s_data.lock().await;
-        s_data.push_back(data);
+        s_data.push_back((self.p_start.elapsed(), data));
     }
 
-    pub async fn remove(&self) -> Option<EnvData> {
+    pub async fn remove(&self) -> Option<(Duration, EnvData)> {
         let mut s_data = self.s_data.lock().await;
         s_data.pop_front()
     }
@@ -97,15 +101,15 @@ impl StoredData {
         }
         let humis = s_data
             .iter()
-            .map(|v| (v.humidity.into()))
+            .map(|(_, v)| (v.humidity.into()))
             .collect::<Vec<T>>();
         let temps = s_data
             .iter()
-            .map(|v| (v.temperature.into()))
+            .map(|(_, v)| (v.temperature.into()))
             .collect::<Vec<T>>();
 
-        let mut std_temp: T = std_dev(&temps, mean(&temps)?)? * factor;
-        let mut std_humi: T = std_dev(&humis, mean(&humis)?)? * factor;
+        let mut std_temp: T = std_dev(&temps, mean(&temps)?)?;
+        let mut std_humi: T = std_dev(&humis, mean(&humis)?)?;
 
         if std_temp < 10i16.into() {
             std_temp = 10i16.into();
@@ -114,7 +118,7 @@ impl StoredData {
             std_humi = 20i16.into();
         }
 
-        Some((std_temp, std_humi))
+        Some((std_temp * factor.into(), std_humi * factor.into()))
     }
 
     /// predict the temperature and humidity
@@ -128,27 +132,31 @@ impl StoredData {
         }
 
         for (i, data) in s_data.iter().enumerate() {
-            println!("{},{}", i, data);
+            dbg!(i, data);
         }
 
-        let x = (0..s_data.len()).map(|x| x as f32).collect::<Vec<f32>>();
+        // let x = (0..s_data.len()).map(|x| x as f32).collect::<Vec<f32>>();
+        let x = s_data
+            .iter()
+            .map(|(t, _)| t.as_secs_f32())
+            .collect::<Vec<f32>>();
         let humis = s_data
             .iter()
-            .map(|v| (v.humidity as f32))
+            .map(|(_, v)| (v.humidity as f32))
             .collect::<Vec<_>>();
         let temps = s_data
             .iter()
-            .map(|v| (v.temperature as f32))
+            .map(|(_, v)| (v.temperature as f32))
             .collect::<Vec<_>>();
 
         let res_humi = linear_regression(&x, &humis)?;
         let res_temp = linear_regression(&x, &temps)?;
 
-        let predicted_humi = res_humi.0 * (x.len()) as f32 + res_humi.1;
-        let predicted_temp = res_temp.0 * (x.len()) as f32 + res_temp.1;
+        let predicted_humi = res_humi.0 * self.p_start.elapsed().as_secs_f32() + res_humi.1;
+        let predicted_temp = res_temp.0 * self.p_start.elapsed().as_secs_f32() + res_temp.1;
 
         Some(EnvData::new(
-            s_data[0].room.clone(),
+            s_data[0].1.room.clone(),
             predicted_temp as i16,
             predicted_humi as u16,
         ))
@@ -177,57 +185,5 @@ mod tests {
         assert_eq!(res.unwrap(), 3);
         let res = mean(&ys);
         assert_eq!(res.unwrap(), 6);
-    }
-
-    #[tokio::test]
-    async fn stored_data_add_remove() {
-        let s_data = StoredData::new(5);
-        let data = EnvData::new("test".to_string(), 10, 20);
-        s_data.add(data.clone()).await;
-        let res = s_data.remove().await.unwrap();
-        assert_eq!(res, data);
-        assert_eq!(s_data.len().await, 0);
-    }
-
-    #[tokio::test]
-    async fn stored_data_predict_one() {
-        let s_data = StoredData::new(5);
-        let data = EnvData::new("test".to_string(), 10, 20);
-        s_data.add(data.clone()).await;
-        let res = s_data.predict().await;
-        assert_eq!(res, None);
-    }
-
-    #[tokio::test]
-    async fn stored_data_predict_many_increase() {
-        let s_data = StoredData::new(5);
-        for i in 0..5 {
-            let data = EnvData::new("test".to_string(), i * 2, (i as i16).try_into().unwrap());
-            s_data.add(data.clone()).await;
-        }
-        let res = s_data.predict().await;
-        assert_eq!(res, Some(EnvData::new("test".to_string(), 10, 5)));
-    }
-
-    #[tokio::test]
-    async fn stored_data_predict_many_decrease() {
-        let s_data = StoredData::new(5);
-        for i in (5..10).into_iter().rev() {
-            let data = EnvData::new("test".to_string(), i, (i as i16).try_into().unwrap());
-            s_data.add(data.clone()).await;
-        }
-        let res = s_data.predict().await;
-        assert_eq!(res, Some(EnvData::new("test".to_string(), 4, 4)));
-    }
-
-    #[tokio::test]
-    async fn stored_data_predict_many_same() {
-        let s_data = StoredData::new(5);
-        for _ in 0..5 {
-            let data = EnvData::new("test".to_string(), 5, 5.try_into().unwrap());
-            s_data.add(data.clone()).await;
-        }
-        let res = s_data.predict().await;
-        assert_eq!(res, Some(EnvData::new("test".to_string(), 5, 5)));
     }
 }
