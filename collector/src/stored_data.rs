@@ -128,7 +128,7 @@ impl StoredData {
     }
 
     /// predict the temperature and humidity
-    /// based on the last 5 values
+    /// based on the last <lim> values
     /// using linear regression
     pub async fn predict(&self, timestamp: Duration) -> Option<EnvData> {
         let s_data = self.s_data.lock().await;
@@ -141,7 +141,6 @@ impl StoredData {
             dbg!(i, data);
         }
 
-        // let x = (0..s_data.len()).map(|x| x as f32).collect::<Vec<f32>>();
         let x = s_data
             .iter()
             .map(|(t, _)| t.as_secs_f32())
@@ -155,11 +154,11 @@ impl StoredData {
             .map(|(_, v)| (v.temperature as f32))
             .collect::<Vec<_>>();
 
-        let res_humi = linear_regression(&x, &humis)?;
-        let res_temp = linear_regression(&x, &temps)?;
+        let (slope_humi, intesection_humi) = linear_regression(&x, &humis)?;
+        let (slope_temp, intesection_temp) = linear_regression(&x, &temps)?;
 
-        let predicted_humi = res_humi.0 * timestamp.as_secs_f32() + res_humi.1;
-        let predicted_temp = res_temp.0 * timestamp.as_secs_f32() + res_temp.1;
+        let predicted_humi = slope_humi * timestamp.as_secs_f32() + intesection_humi;
+        let predicted_temp = slope_temp * timestamp.as_secs_f32() + intesection_temp;
 
         Some(EnvData::new(
             s_data[0].1.room.clone(),
