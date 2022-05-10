@@ -67,6 +67,7 @@ async fn data(
     let my_pin = pin.pin.lock().await;
     let possible_expected_data = stored_data.predict(stored_data.get_timestamp().await).await;
     let deviation = stored_data.get_expected_deviation(3.0).await;
+    let mut tries = 0;
     loop {
         match read_dht11(*my_pin) {
             Ok((temp, humi)) => {
@@ -83,7 +84,9 @@ async fn data(
                         );
                         (data.temperature as f32 - temp as f32).abs() > devi_temp
                             || (data.humidity as f32 - humi as f32).abs() > devi_humi
+                            || tries > 16
                     }) {
+                        tries += 1;
                         continue;
                     }
                 }
