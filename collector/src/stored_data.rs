@@ -62,7 +62,7 @@ pub fn linear_regression<T: Stats>(xs: &[T], ys: &[T]) -> Option<(T, T)> {
 pub struct StoredData {
     s_data: Mutex<VecDeque<(Duration, EnvData)>>,
     lim: usize,
-    p_start: Instant,
+    p_start: Mutex<Instant>,
 }
 
 impl StoredData {
@@ -70,13 +70,19 @@ impl StoredData {
         StoredData {
             s_data: Mutex::new(VecDeque::new()),
             lim,
-            p_start: Instant::now(),
+            p_start: Mutex::new(Instant::now()),
         }
+    }
+
+    pub async fn get_timestamp(&self) -> Duration {
+        let p_start = self.p_start.lock().await;
+        p_start.elapsed()
     }
 
     pub async fn add(&self, data: EnvData) {
         let mut s_data = self.s_data.lock().await;
-        s_data.push_back((self.p_start.elapsed(), data));
+        let p_start = self.p_start.lock().await;
+        s_data.push_back((p_start.elapsed(), data));
     }
 
     pub async fn remove(&self) -> Option<(Duration, EnvData)> {
@@ -124,7 +130,7 @@ impl StoredData {
     /// predict the temperature and humidity
     /// based on the last 5 values
     /// using linear regression
-    pub async fn predict(&self) -> Option<EnvData> {
+    pub async fn predict(&self, timestamp: Duration) -> Option<EnvData> {
         let s_data = self.s_data.lock().await;
 
         if s_data.len() < self.lim {
@@ -152,8 +158,8 @@ impl StoredData {
         let res_humi = linear_regression(&x, &humis)?;
         let res_temp = linear_regression(&x, &temps)?;
 
-        let predicted_humi = res_humi.0 * self.p_start.elapsed().as_secs_f32() + res_humi.1;
-        let predicted_temp = res_temp.0 * self.p_start.elapsed().as_secs_f32() + res_temp.1;
+        let predicted_humi = res_humi.0 * timestamp.as_secs_f32() + res_humi.1;
+        let predicted_temp = res_temp.0 * timestamp.as_secs_f32() + res_temp.1;
 
         Some(EnvData::new(
             s_data[0].1.room.clone(),

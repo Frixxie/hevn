@@ -34,7 +34,7 @@ struct Opt {
 
 #[get("/predict")]
 async fn predict(stored_data: web::Data<StoredData>) -> Result<impl Responder> {
-    let possible_expected_data = stored_data.predict().await;
+    let possible_expected_data = stored_data.predict(stored_data.get_timestamp().await).await;
     let deviation = stored_data.get_expected_deviation(3.0).await;
     return Ok(format!("{:?}, {:?}", possible_expected_data, deviation));
 }
@@ -65,7 +65,7 @@ async fn data(
     stored_data: web::Data<StoredData>,
 ) -> Result<impl Responder, actix_web::Error> {
     let my_pin = pin.pin.lock().await;
-    let possible_expected_data = stored_data.predict().await;
+    let possible_expected_data = stored_data.predict(stored_data.get_timestamp().await).await;
     let deviation = stored_data.get_expected_deviation(3.0).await;
     loop {
         match read_dht11(*my_pin) {
