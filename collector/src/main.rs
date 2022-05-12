@@ -35,7 +35,7 @@ struct Opt {
 #[get("/predict")]
 async fn predict(stored_data: web::Data<StoredData>) -> Result<impl Responder> {
     let possible_expected_data = stored_data.predict(stored_data.get_timestamp().await).await;
-    let deviation = stored_data.get_expected_deviation(3.0).await;
+    let deviation = stored_data.get_expected_deviation(2.0).await;
     return Ok(format!("{:?}, {:?}", possible_expected_data, deviation));
 }
 

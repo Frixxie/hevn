@@ -124,7 +124,7 @@ impl StoredData {
             std_humi = 20i16.into();
         }
 
-        Some((std_temp * factor.into(), std_humi * factor.into()))
+        Some((std_temp * factor, std_humi * factor))
     }
 
     /// predict the temperature and humidity
