@@ -85,7 +85,7 @@ async fn data(
                         );
                         (data.temperature as f32 - temp as f32).abs() > devi_temp
                             || (data.humidity as f32 - humi as f32).abs() > devi_humi
-                            || tries > 16
+                            || tries < 16
                     }) {
                         tries += 1;
                         continue;
