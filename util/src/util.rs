@@ -76,32 +76,6 @@ impl Collector {
     pub fn url(&self) -> String {
         self.url.clone()
     }
-
-    pub async fn read(&self, client: &Client) -> Result<EnvData, Box<CollectorError>> {
-        let res = client
-            .get(format!("{}/read", &self.url()))
-            .send()
-            .await
-            .map_err(|e| CollectorError {
-                error: Some(Box::new(e)),
-            })?;
-        Ok(res.json().await.map_err(|e| CollectorError {
-            error: Some(Box::new(e)),
-        })?)
-    }
-
-    pub async fn get_status_async(&self, client: &Client) -> Result<EnvData, Box<CollectorError>> {
-        let res = client
-            .get(format!("{}/data", &self.url()))
-            .send()
-            .await
-            .map_err(|e| CollectorError {
-                error: Some(Box::new(e)),
-            })?;
-        Ok(res.json().await.map_err(|e| CollectorError {
-            error: Some(Box::new(e)),
-        })?)
-    }
 }
 
 #[derive(Debug, Default)]

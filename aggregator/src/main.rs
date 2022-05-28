@@ -27,20 +27,47 @@ struct Opt {
     collectors: String,
 }
 
+async fn get_env_data(url: &str, client: &reqwest::Client) -> Option<EnvData> {
+    match client.get(url).send().await {
+        Ok(response) => match response.json().await {
+            Ok(data) => return Some(data),
+            Err(e) => {
+                error!("{}", e);
+                return None;
+            }
+        },
+        Err(e) => {
+            error!("{}", e);
+            return None;
+        }
+    }
+}
+
 #[get("/")]
 async fn collect(
     req: HttpRequest,
     collectors: web::Data<Vec<Collector>>,
     client: web::Data<reqwest::Client>,
 ) -> Result<impl Responder, Error> {
-    let mut resp = Vec::new();
+    let mut futures = Vec::new();
     for collector in collectors.iter() {
-        let data = collector.get_status_async(&client).await;
-        match data {
-            Ok(d) => resp.push(d),
-            Err(e) => error!("{}", e),
+        let url = collector.url().clone();
+        let local_client = client.clone();
+        futures.push(tokio::spawn(async move {
+            get_env_data(format!("{}/data", &url).as_str(), &local_client).await
+        }));
+    }
+
+    let mut resp = Vec::new();
+    for f in futures {
+        match f.await? {
+            Some(data) => resp.push(data),
+            None => {
+                error!("Error while collecting data");
+            }
         }
     }
+
     let con_info = req.connection_info();
     for data in &resp {
         info!("{},{}", con_info.host(), data);
@@ -54,14 +81,25 @@ async fn read(
     collectors: web::Data<Vec<Collector>>,
     client: web::Data<reqwest::Client>,
 ) -> Result<impl Responder, Error> {
-    let mut resp: Vec<EnvData> = Vec::new();
+    let mut futures = Vec::new();
     for collector in collectors.iter() {
-        let data = collector.read(&client).await;
-        match data {
-            Ok(d) => resp.push(d),
-            Err(e) => error!("{}", e),
+        let url = collector.url().clone();
+        let local_client = client.clone();
+        futures.push(tokio::spawn(async move {
+            get_env_data(format!("{}/read", &url).as_str(), &local_client).await
+        }));
+    }
+
+    let mut resp = Vec::new();
+    for f in futures {
+        match f.await? {
+            Some(data) => resp.push(data),
+            None => {
+                error!("Error while collecting data");
+            }
         }
     }
+
     let con_info = req.connection_info();
     for data in &resp {
         info!("{},{}", con_info.host(), data);
