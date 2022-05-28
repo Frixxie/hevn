@@ -30,15 +30,15 @@ struct Opt {
 async fn get_env_data(url: &str, client: &reqwest::Client) -> Option<EnvData> {
     match client.get(url).send().await {
         Ok(response) => match response.json().await {
-            Ok(data) => return Some(data),
+            Ok(data) => Some(data),
             Err(e) => {
                 error!("{}", e);
-                return None;
+                None
             }
         },
         Err(e) => {
             error!("{}", e);
-            return None;
+            None
         }
     }
 }

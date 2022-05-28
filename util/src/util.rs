@@ -1,4 +1,3 @@
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -110,9 +109,10 @@ impl SmartAppliance for Collector {
                 error: Some(Box::new(e)),
             }
         })?;
-        Ok(res.json().map_err(|e| CollectorError {
+        let data = res.json().map_err(|e| CollectorError {
             error: Some(Box::new(e)),
-        })?)
+        })?;
+        Ok(data)
     }
 
     fn turn_on(&self) -> Result<(), Self::Error> {
