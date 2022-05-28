@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use util::{Collector, EnvData, ShellyStatus, SmartAppliance};
+use util::{Collector, EnvData, ShellyStatus};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -31,10 +31,11 @@ struct Opt {
 async fn collect(
     req: HttpRequest,
     collectors: web::Data<Vec<Collector>>,
+    client: web::Data<reqwest::Client>,
 ) -> Result<impl Responder, Error> {
-    let mut resp: Vec<EnvData> = Vec::new();
+    let mut resp = Vec::new();
     for collector in collectors.iter() {
-        let data = collector.get_status().await;
+        let data = collector.get_status_async(&client).await;
         match data {
             Ok(d) => resp.push(d),
             Err(e) => error!("{}", e),
@@ -51,10 +52,11 @@ async fn collect(
 async fn read(
     req: HttpRequest,
     collectors: web::Data<Vec<Collector>>,
+    client: web::Data<reqwest::Client>,
 ) -> Result<impl Responder, Error> {
     let mut resp: Vec<EnvData> = Vec::new();
     for collector in collectors.iter() {
-        let data = collector.read().await;
+        let data = collector.read(&client).await;
         match data {
             Ok(d) => resp.push(d),
             Err(e) => error!("{}", e),
@@ -120,6 +122,9 @@ async fn main() -> std::io::Result<()> {
     ])
     .unwrap();
 
+    let client_builder = reqwest::ClientBuilder::new().timeout(std::time::Duration::from_secs(5));
+    let client = client_builder.build().unwrap();
+
     HttpServer::new(move || {
         // They should be outside i know due to every thread getting copy instead of reference
         let collectors: Vec<Collector> =
@@ -146,6 +151,7 @@ async fn main() -> std::io::Result<()> {
             .service(heater_off)
             .app_data(web::Data::new(collectors))
             .app_data(web::Data::new(my_heater))
+            .app_data(web::Data::new(client.clone()))
     })
     .bind("0.0.0.0:65535")
     .unwrap()

@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,18 +13,17 @@ pub trait SmartInfo {
     fn app_type(&self) -> Appliences;
 }
 
-#[async_trait]
 pub trait SmartAppliance: SmartInfo {
     type Status;
     type Error: std::error::Error + Default;
     /// This functions returns the current status of the appliance
-    async fn get_status(&self) -> Result<Self::Status, Self::Error>;
+    fn get_status(&self) -> Result<Self::Status, Self::Error>;
     /// This function turns the appliance on
-    async fn turn_on(&self) -> Result<(), Self::Error> {
+    fn turn_on(&self) -> Result<(), Self::Error> {
         Err(Self::Error::default())
     }
     /// This function turns the appliance off
-    async fn turn_off(&self) -> Result<(), Self::Error> {
+    fn turn_off(&self) -> Result<(), Self::Error> {
         Err(Self::Error::default())
     }
 }
@@ -64,16 +62,11 @@ impl fmt::Display for EnvData {
 pub struct Collector {
     room: String,
     url: String,
-    client: Client,
 }
 
 impl Collector {
     pub fn new(room: String, url: String) -> Self {
-        Self {
-            room,
-            url,
-            client: Client::new(),
-        }
+        Self { room, url }
     }
 
     pub fn room(&self) -> String {
@@ -84,10 +77,22 @@ impl Collector {
         self.url.clone()
     }
 
-    pub async fn read(&self) -> Result<EnvData, Box<CollectorError>> {
-        let res = self
-            .client
+    pub async fn read(&self, client: &Client) -> Result<EnvData, Box<CollectorError>> {
+        let res = client
             .get(format!("{}/read", &self.url()))
+            .send()
+            .await
+            .map_err(|e| CollectorError {
+                error: Some(Box::new(e)),
+            })?;
+        Ok(res.json().await.map_err(|e| CollectorError {
+            error: Some(Box::new(e)),
+        })?)
+    }
+
+    pub async fn get_status_async(&self, client: &Client) -> Result<EnvData, Box<CollectorError>> {
+        let res = client
+            .get(format!("{}/data", &self.url()))
             .send()
             .await
             .map_err(|e| CollectorError {
@@ -121,30 +126,26 @@ impl SmartInfo for Collector {
     }
 }
 
-#[async_trait]
 impl SmartAppliance for Collector {
     type Status = EnvData;
     type Error = CollectorError;
 
-    async fn get_status(&self) -> Result<Self::Status, Self::Error> {
-        let res = self
-            .client
-            .get(format!("{}/data", &self.url()))
-            .send()
-            .await
-            .map_err(|e| CollectorError {
+    fn get_status(&self) -> Result<Self::Status, Self::Error> {
+        let res = reqwest::blocking::get(format!("{}/data", &self.url())).map_err(|e| {
+            CollectorError {
                 error: Some(Box::new(e)),
-            })?;
-        Ok(res.json().await.map_err(|e| CollectorError {
+            }
+        })?;
+        Ok(res.json().map_err(|e| CollectorError {
             error: Some(Box::new(e)),
         })?)
     }
 
-    async fn turn_on(&self) -> Result<(), Self::Error> {
+    fn turn_on(&self) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    async fn turn_off(&self) -> Result<(), Self::Error> {
+    fn turn_off(&self) -> Result<(), Self::Error> {
         Ok(())
     }
 }
@@ -153,16 +154,11 @@ impl SmartAppliance for Collector {
 pub struct ShellyS1 {
     room: String,
     url: String,
-    client: Client,
 }
 
 impl ShellyS1 {
     pub fn new(room: String, url: String) -> Self {
-        Self {
-            room,
-            url,
-            client: Client::new(),
-        }
+        Self { room, url }
     }
 }
 
@@ -244,22 +240,16 @@ impl fmt::Display for ShellyS1Error {
     }
 }
 
-#[async_trait]
 impl SmartAppliance for ShellyS1 {
     type Status = ShellyStatus;
     type Error = ShellyS1Error;
 
-    async fn get_status(&self) -> Result<Self::Status, Self::Error> {
+    fn get_status(&self) -> Result<Self::Status, Self::Error> {
         let url = format!("http://{}/status", self.url);
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ShellyS1Error {
-                error: Some(Box::new(e)),
-            })?;
-        let status: Value = response.json().await.map_err(|e| ShellyS1Error {
+        let response = reqwest::blocking::get(&url).map_err(|e| ShellyS1Error {
+            error: Some(Box::new(e)),
+        })?;
+        let status: Value = response.json().map_err(|e| ShellyS1Error {
             error: Some(Box::new(e)),
         })?;
         Ok(ShellyStatus {
@@ -276,27 +266,19 @@ impl SmartAppliance for ShellyS1 {
         })
     }
 
-    async fn turn_on(&self) -> Result<(), Self::Error> {
+    fn turn_on(&self) -> Result<(), Self::Error> {
         let url = format!("http://{}/relay/0?turn=on", self.url);
-        self.client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ShellyS1Error {
-                error: Some(Box::new(e)),
-            })?;
+        reqwest::blocking::get(&url).map_err(|e| ShellyS1Error {
+            error: Some(Box::new(e)),
+        })?;
         Ok(())
     }
 
-    async fn turn_off(&self) -> Result<(), Self::Error> {
+    fn turn_off(&self) -> Result<(), Self::Error> {
         let url = format!("http://{}/relay/0?turn=off", self.url);
-        self.client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ShellyS1Error {
-                error: Some(Box::new(e)),
-            })?;
+        reqwest::blocking::get(&url).map_err(|e| ShellyS1Error {
+            error: Some(Box::new(e)),
+        })?;
         Ok(())
     }
 }

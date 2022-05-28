@@ -39,18 +39,18 @@ impl Heater {
     }
 
     pub async fn get_status(&self) -> Result<ShellyStatus, ShellyS1Error> {
-        self.device.get_status().await.map_err(|e| e)
+        self.device.get_status().map_err(|e| e)
     }
 
     pub async fn turn_on(&self) -> Result<String, ShellyS1Error> {
-        match self.device.turn_on().await {
+        match self.device.turn_on() {
             Ok(_) => Ok(format!("{} turned on", self.room)),
             Err(e) => Err(e),
         }
     }
 
     pub async fn turn_off(&self) -> Result<String, ShellyS1Error> {
-        match self.device.turn_off().await {
+        match self.device.turn_off() {
             Ok(_) => Ok(format!("Turned off {}", self.room)),
             Err(e) => Err(e),
         }
