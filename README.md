@@ -21,6 +21,8 @@ curl https://fasteraune.com/hevn/read
 
 It is also possible to go to [here](https://fasteraune.com/hevn/read)
 
+This is currently taken down
+
 ## How is this project organized?
 
 - `collector` project contains the code for running on the RaspberryPIs, which are connected to a DHT11 sensor.
